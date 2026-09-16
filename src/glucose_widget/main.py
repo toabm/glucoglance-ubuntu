@@ -18,13 +18,14 @@ import gi
 # ships Gtk 4 as the default) instead of the Gtk 3 the tray/dialog code needs.
 gi.require_version("Gtk", "3.0")
 
-from gi.repository import GLib  # noqa: E402 (must follow gi.require_version)
+from gi.repository import GLib, Gtk  # noqa: E402 (must follow gi.require_version)
 
 from glucose_widget.client.errors import AuthError, NetworkError, StaleDataError
 from glucose_widget.client.librelinkup import LibreLinkUpClient
 from glucose_widget.config.credentials import get_password, set_password
 from glucose_widget.config.settings import Settings, load_settings, save_settings
 from glucose_widget.poller.poller import EventBus, GlucosePoller, PollError, ReadingUpdated
+from glucose_widget.ui.app_icon import app_icon_path
 from glucose_widget.ui.credential_prompt import prompt_for_credentials, show_message
 from glucose_widget.ui.tray import TrayDisplay
 
@@ -193,6 +194,9 @@ class Application:
 def main() -> None:
     """Console-script entry point (see pyproject.toml)."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    # Applies to every GTK window/dialog created from here on (credential
+    # prompt, message dialogs), so it only needs setting once.
+    Gtk.Window.set_default_icon_from_file(str(app_icon_path()))
     Application().start()
 
 
