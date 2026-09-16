@@ -8,6 +8,8 @@ desktops) - no other system integration is needed.
 import sys
 from pathlib import Path
 
+from glucose_widget.ui.app_icon import app_icon_path
+
 _AUTOSTART_DIR = Path.home() / ".config" / "autostart"
 _DESKTOP_FILE_NAME = "glucose-widget.desktop"
 
@@ -40,7 +42,7 @@ def _desktop_entry_content() -> str:
         "Type=Application\n"
         "Name=Glucose Widget\n"
         f"Exec={exec_path}\n"
-        "Icon=utilities-system-monitor\n"
+        f"Icon={app_icon_path()}\n"
         "X-GNOME-Autostart-enabled=true\n"
         "Comment=Shows current blood glucose reading in the top bar\n"
     )
