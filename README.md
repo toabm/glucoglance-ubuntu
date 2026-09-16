@@ -85,8 +85,9 @@ starting silently in the background. Run this once, from the repo
 directory, with the venv already created as above:
 
 ```bash
-mkdir -p ~/.local/share/applications
+test -x .venv/bin/glucose-widget || { echo "Run this from the glucose-widget-ubuntu directory (the venv wasn't found here)"; exit 1; }
 ICON_PATH=$(.venv/bin/python3 -c "from glucose_widget.ui.app_icon import app_icon_path; print(app_icon_path())")
+mkdir -p ~/.local/share/applications
 cat > ~/.local/share/applications/glucose-widget.desktop <<EOF
 [Desktop Entry]
 Type=Application
@@ -102,6 +103,12 @@ EOF
 It should now appear if you search for "Glucose Widget" in GNOME's
 Activities overview (press the Super/Windows key and start typing). From
 there you can drag it onto the Dock to pin it.
+
+(This installs into `~/.local/share/applications`, the standard location
+for manually-installed apps - not `/usr/share/applications`, which is
+where apt/snap-installed apps land since that directory is shared across
+all users on the machine. GNOME scans both identically, so this works the
+same either way; no need to move it.)
 
 (The `Exec=` line uses an absolute path to the venv you just created,
 rather than the bare `glucose-widget` command, since a graphical launcher
