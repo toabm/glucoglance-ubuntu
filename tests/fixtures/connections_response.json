@@ -1,0 +1,15 @@
+{
+  "status": 0,
+  "data": [
+    {
+      "patientId": "patient-1",
+      "glucoseMeasurement": {
+        "Value": 118,
+        "TrendArrow": 3,
+        "Timestamp": "__NOW__",
+        "isHigh": false,
+        "isLow": false
+      }
+    }
+  ]
+}
