@@ -12,31 +12,101 @@ wearer shares their readings to LibreLinkUp, and you use a follower
 account's email/password to log in here. This app cannot talk to the
 sensor directly.
 
-## Install
+## Installing on Ubuntu
+
+These steps assume a fresh Ubuntu machine with nothing set up yet - if
+you've already done part of this, skip ahead.
+
+**1. Get the code:**
+
+```bash
+git clone https://github.com/toabm/glucose-widget-ubuntu.git
+cd glucose-widget-ubuntu
+```
+
+**2. Install the system packages** the tray icon needs (these come from
+`apt`, not `pip` - they're GTK/AppIndicator bindings that Python's package
+index doesn't distribute):
 
 ```bash
 sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1
-python3 -m venv --system-site-packages .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
 ```
 
-(If your Ubuntu/distro version ships classic `AppIndicator3` instead of the
-Ayatana fork, install `gir1.2-appindicator3-0.1` instead - the app tries
-Ayatana first and falls back automatically.)
+(If your Ubuntu/distro version ships classic `AppIndicator3` instead of
+the Ayatana fork, install `gir1.2-appindicator3-0.1` instead - the app
+tries Ayatana first and falls back automatically, so either works.)
 
-## Run
+**3. Create a Python virtual environment and install the app into it.**
+`--system-site-packages` is required here - it lets the venv reuse the
+`python3-gi` bindings you just installed with `apt`, instead of trying
+(and failing) to build them from PyPI:
+
+```bash
+python3 -m venv --system-site-packages .venv
+source .venv/bin/activate
+pip install .
+```
+
+That's the whole install. The `glucose-widget` command now exists at
+`.venv/bin/glucose-widget` (and on your `PATH` while the venv is
+activated).
+
+## Running it for the first time
+
+With the venv activated (`source .venv/bin/activate`, if you're in a new
+terminal):
 
 ```bash
 glucose-widget
 ```
 
-On first run, a dialog asks for your LibreLinkUp email and password. The
-email is saved to `~/.config/glucose-widget/config.toml`; the password is
-stored in your system keyring, never in plaintext.
+A small dialog pops up asking for your LibreLinkUp email and password (see
+Requirements above). Enter them and press OK. The email is saved to
+`~/.config/glucose-widget/config.toml`; the password is stored in your
+system keyring (GNOME Keyring), never in plaintext. A number should then
+appear in your top bar within a few seconds - that's your current glucose
+reading.
 
-Right-click the tray icon for **Start at login** (checkbox), **Restart**
-(reload after a config.toml edit), and **Quit**.
+You won't need to repeat this - the credentials are remembered, and (see
+below) the app is set to start automatically at every login by default.
+
+Right-click the tray icon for:
+- **Start at login** - checkbox, on by default (see "Running automatically
+  at login" below).
+- **Restart** - reloads the app, e.g. after editing `config.toml`.
+- **Quit**.
+
+## Adding it to your Applications menu
+
+This is separate from "start at login" below: this makes Glucose Widget
+show up as a proper icon in GNOME's Activities overview and app search
+(so you can launch it manually, or pin it to the Dock), rather than only
+starting silently in the background. Run this once, from the repo
+directory, with the venv already created as above:
+
+```bash
+mkdir -p ~/.local/share/applications
+ICON_PATH=$(.venv/bin/python3 -c "from glucose_widget.ui.app_icon import app_icon_path; print(app_icon_path())")
+cat > ~/.local/share/applications/glucose-widget.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Name=Glucose Widget
+Exec=$(pwd)/.venv/bin/glucose-widget
+Icon=$ICON_PATH
+Comment=Shows current blood glucose reading in the top bar
+Terminal=false
+Categories=Utility;
+EOF
+```
+
+It should now appear if you search for "Glucose Widget" in GNOME's
+Activities overview (press the Super/Windows key and start typing). From
+there you can drag it onto the Dock to pin it.
+
+(The `Exec=` line uses an absolute path to the venv you just created,
+rather than the bare `glucose-widget` command, since a graphical launcher
+doesn't necessarily have your venv on its `PATH`. If you ever move the
+`glucose-widget-ubuntu` folder, re-run the command above to update it.)
 
 ## Configuration
 
@@ -66,7 +136,11 @@ right-click menu ("Start at login"), or by editing `autostart_enabled` in
 
 ## Tests
 
+Tests need the extra dev dependencies (`pytest`, `responses`), which the
+regular install above skips:
+
 ```bash
+pip install -e ".[dev]"
 pytest
 ```
 
