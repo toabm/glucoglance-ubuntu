@@ -137,9 +137,26 @@ Edit the file and restart `glucose-widget` for changes to take effect.
 
 Enabled by default - on every startup the app installs (or removes) a
 `~/.config/autostart/glucose-widget.desktop` entry to match the
-`autostart_enabled` setting. Toggle it anytime from the tray icon's
-right-click menu ("Start at login"), or by editing `autostart_enabled` in
-`config.toml` and restarting.
+`autostart_enabled` setting. That path is the standard XDG autostart
+location on Ubuntu (and GNOME/most other Linux desktops generally), but
+this project is only built and tested against Ubuntu - see "Installing on
+Ubuntu" above. Toggle it anytime from the tray icon's right-click menu
+("Start at login"), or by editing `autostart_enabled` in `config.toml` and
+restarting.
+
+That autostart entry always waits 6 seconds before actually launching the
+app (only on this path - running from a terminal or the Applications-menu
+icon starts immediately). This isn't configurable, and it's not about
+sensor timing: it exists purely to influence where the icon lands in the
+top bar. GNOME Shell's AppIndicator extension inserts each new tray icon
+at a fixed position rather than appending, so indicators that register
+*later* tend to end up ahead of ones that registered earlier. The delay
+gives your other autostart tray apps a head start, with the goal of
+landing this icon at the left edge of the right-side icon group (i.e.
+immediately after the clock, ahead of things like wifi/bluetooth/volume) -
+though the exact result depends on how many other apps you have and how
+long they take to start, so it may need tuning (edit
+`_STARTUP_DELAY_SECONDS` in `config/autostart.py`) to get exactly there.
 
 ## Tests
 
