@@ -171,10 +171,16 @@ ruff check .                                          # lint
 pytest --cov=glucose_widget --cov-report=term-missing # tests + coverage
 ```
 
-Overall coverage sits around 50% by design, not by accident: GTK/keyring-
+Overall coverage sits around 49% by design, not by accident: GTK/keyring-
 dependent code (`main.py`, `ui/tray.py`, `ui/credential_prompt.py`,
 `ui/display.py`, `config/credentials.py`) is deliberately manual-only -
 see CLAUDE.md's "Testing philosophy" section.
+
+Coverage includes branches (`[tool.coverage.run] branch = true` in
+`pyproject.toml`, applied automatically - no extra flag needed), not
+just lines: a line can show as "covered" while one of its branches
+(e.g. one side of an `if`) was never actually exercised, so branch
+coverage catches real gaps line coverage hides.
 
 If your IDE flags `gi.repository` symbols (e.g. `GLib`, `Gtk`) as
 unresolved, that's expected - PyGObject generates those modules
