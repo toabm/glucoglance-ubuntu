@@ -124,7 +124,8 @@ class LibreLinkUpClient:
         if resp.status_code == 401 or body.get("status") not in (0, None):
             raise AuthError(f"Login rejected: {_response_error_detail(resp, body)}")
         if resp.status_code != 200:
-            raise NetworkError(f"Login returned unexpected HTTP {_response_error_detail(resp, body)}")
+            detail = _response_error_detail(resp, body)
+            raise NetworkError(f"Login returned unexpected HTTP {detail}")
 
         return body.get("data", {})
 
@@ -151,7 +152,8 @@ class LibreLinkUpClient:
 
         body = _parse_json(resp, NetworkError)
         if resp.status_code != 200:
-            raise NetworkError(f"Connections returned unexpected HTTP {_response_error_detail(resp, body)}")
+            detail = _response_error_detail(resp, body)
+            raise NetworkError(f"Connections returned unexpected HTTP {detail}")
 
         return body
 

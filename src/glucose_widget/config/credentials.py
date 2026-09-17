@@ -17,3 +17,11 @@ def get_password(email: str) -> str | None:
 def set_password(email: str, password: str) -> None:
     """Store `password` for `email` in the system keyring."""
     keyring.set_password(_SERVICE_NAME, email, password)
+
+
+def delete_password(email: str) -> None:
+    """Remove the stored password for `email`, if any (used by "Log out")."""
+    try:
+        keyring.delete_password(_SERVICE_NAME, email)
+    except keyring.errors.PasswordDeleteError:
+        pass  # nothing was stored for this email - already effectively logged out

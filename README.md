@@ -1,5 +1,7 @@
 # Glucose Widget for Ubuntu
 
+[![CI](https://github.com/toabm/glucose-widget-ubuntu/actions/workflows/ci.yml/badge.svg)](https://github.com/toabm/glucose-widget-ubuntu/actions/workflows/ci.yml)
+
 A tray widget that shows your current glucose reading (from a FreeStyle
 Libre sensor, via LibreLinkUp) in the Ubuntu top bar. Phase 1: just the
 number and trend arrow, refreshed roughly every minute. Threshold alarms are
@@ -158,15 +160,49 @@ though the exact result depends on how many other apps you have and how
 long they take to start, so it may need tuning (edit
 `_STARTUP_DELAY_SECONDS` in `config/autostart.py`) to get exactly there.
 
-## Tests
+## Tests & linting
 
-Tests need the extra dev dependencies (`pytest`, `responses`), which the
-regular install above skips:
+Tests and linting need the extra dev dependencies, which the regular
+install above skips:
 
 ```bash
 pip install -e ".[dev]"
-pytest
+ruff check .                                          # lint
+pytest --cov=glucose_widget --cov-report=term-missing # tests + coverage
 ```
+
+Overall coverage sits around 49% by design, not by accident: GTK/keyring-
+dependent code (`main.py`, `ui/tray.py`, `ui/credential_prompt.py`,
+`ui/display.py`, `config/credentials.py`) is deliberately manual-only -
+see CLAUDE.md's "Testing philosophy" section.
+
+Coverage includes branches (`[tool.coverage.run] branch = true` in
+`pyproject.toml`, applied automatically - no extra flag needed), not
+just lines: a line can show as "covered" while one of its branches
+(e.g. one side of an `if`) was never actually exercised, so branch
+coverage catches real gaps line coverage hides.
+
+If your IDE flags `gi.repository` symbols (e.g. `GLib`, `Gtk`) as
+unresolved, that's expected - PyGObject generates those modules
+dynamically from typelibs at runtime, not from real `.py` files, so
+static analyzers can't see them without type stubs. Install those
+separately from `dev` (pip otherwise tries to rebuild the real
+PyGObject/pycairo from source to satisfy this package's declared
+dependency, and fails without cairo/girepository dev headers):
+
+```bash
+pip install --no-deps PyGObject-stubs
+```
+
+## Continuous integration
+
+Every push to `develop`/`master` and every pull request runs `ruff` and
+the full test suite (`.github/workflows/ci.yml`), publishing a test
+report and a coverage summary (including diff/patch coverage on PRs) as
+a PR comment. Note: this doesn't currently *block* merging on failure -
+GitHub's required-status-checks branch protection needs GitHub Pro on a
+private repo, which this one doesn't have (see `master` being PR-only by
+convention rather than by enforcement, for the same reason).
 
 ## Project layout
 
