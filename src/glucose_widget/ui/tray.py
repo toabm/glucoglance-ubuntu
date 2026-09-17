@@ -37,6 +37,7 @@ except ValueError:
 from gi.repository import GLib, Gtk
 
 from glucose_widget.config.autostart import set_autostart_enabled
+from glucose_widget.config.credentials import delete_password
 from glucose_widget.config.settings import Settings, save_settings
 from glucose_widget.domain.range import GlucoseRange, classify_mgdl
 from glucose_widget.domain.reading import GlucoseReading
@@ -94,7 +95,7 @@ class TrayDisplay:
     def _build_menu(self) -> Gtk.Menu:
         """Build the indicator's right-click menu: a "start at login"
         checkbox, Restart (to pick up a config.toml edit without a
-        terminal), and Quit."""
+        terminal), Log out, and Quit."""
         menu = Gtk.Menu()
 
         autostart_item = Gtk.CheckMenuItem(label="Start at login")
@@ -107,6 +108,10 @@ class TrayDisplay:
         restart_item = Gtk.MenuItem(label="Restart")
         restart_item.connect("activate", lambda *_args: self._restart())
         menu.append(restart_item)
+
+        logout_item = Gtk.MenuItem(label="Log out")
+        logout_item.connect("activate", lambda *_args: self._log_out())
+        menu.append(logout_item)
 
         quit_item = Gtk.MenuItem(label="Quit")
         quit_item.connect("activate", lambda *_args: self.shutdown())
@@ -129,6 +134,17 @@ class TrayDisplay:
         so there's nothing else to shut down first."""
         shutil.rmtree(self._icon_dir, ignore_errors=True)
         os.execv(sys.executable, [sys.executable, "-m", "glucose_widget.main"])
+
+    def _log_out(self) -> None:
+        """Forget the stored LibreLinkUp credentials, then restart - the
+        fresh process finds none stored and shows the login dialog again,
+        reusing the same first-run flow rather than needing separate code
+        for "log out and re-prompt"."""
+        if self._settings.account_email:
+            delete_password(self._settings.account_email)
+            self._settings.account_email = None
+            save_settings(self._settings)
+        self._restart()
 
     def show_reading(self, reading: GlucoseReading, unit: GlucoseUnit) -> None:
         """Update the tray icon with a newly-fetched reading, colored by
