@@ -54,3 +54,4 @@ ignore = [
 
 [tool.coverage.run]
 source = ["glucose_widget"]
+branch = true
