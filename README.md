@@ -1,5 +1,7 @@
 # Glucose Widget for Ubuntu
 
+[![CI](https://github.com/toabm/glucose-widget-ubuntu/actions/workflows/ci.yml/badge.svg)](https://github.com/toabm/glucose-widget-ubuntu/actions/workflows/ci.yml)
+
 A tray widget that shows your current glucose reading (from a FreeStyle
 Libre sensor, via LibreLinkUp) in the Ubuntu top bar. Phase 1: just the
 number and trend arrow, refreshed roughly every minute. Threshold alarms are
@@ -158,15 +160,31 @@ though the exact result depends on how many other apps you have and how
 long they take to start, so it may need tuning (edit
 `_STARTUP_DELAY_SECONDS` in `config/autostart.py`) to get exactly there.
 
-## Tests
+## Tests & linting
 
-Tests need the extra dev dependencies (`pytest`, `responses`), which the
-regular install above skips:
+Tests and linting need the extra dev dependencies, which the regular
+install above skips:
 
 ```bash
 pip install -e ".[dev]"
-pytest
+ruff check .                                          # lint
+pytest --cov=glucose_widget --cov-report=term-missing # tests + coverage
 ```
+
+Overall coverage sits around 50% by design, not by accident: GTK/keyring-
+dependent code (`main.py`, `ui/tray.py`, `ui/credential_prompt.py`,
+`ui/display.py`, `config/credentials.py`) is deliberately manual-only -
+see CLAUDE.md's "Testing philosophy" section.
+
+## Continuous integration
+
+Every push to `develop`/`master` and every pull request runs `ruff` and
+the full test suite (`.github/workflows/ci.yml`), publishing a test
+report and a coverage summary (including diff/patch coverage on PRs) as
+a PR comment. Note: this doesn't currently *block* merging on failure -
+GitHub's required-status-checks branch protection needs GitHub Pro on a
+private repo, which this one doesn't have (see `master` being PR-only by
+convention rather than by enforcement, for the same reason).
 
 ## Project layout
 

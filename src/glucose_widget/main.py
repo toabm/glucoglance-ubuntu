@@ -193,7 +193,9 @@ class Application:
 
 def main() -> None:
     """Console-script entry point (see pyproject.toml)."""
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
     # Applies to every GTK window/dialog created from here on (credential
     # prompt, message dialogs), so it only needs setting once.
     Gtk.Window.set_default_icon_from_file(str(app_icon_path()))

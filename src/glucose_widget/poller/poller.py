@@ -18,8 +18,9 @@ Design notes:
 """
 
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Protocol
+from typing import Protocol
 
 from glucose_widget.domain.reading import GlucoseReading
 

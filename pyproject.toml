@@ -19,7 +19,9 @@ glucose-widget = "glucose_widget.main:main"
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "pytest-cov>=5.0",
     "responses>=0.25",
+    "ruff>=0.6",
     "PyGObject-stubs>=2.10",
 ]
 
@@ -31,3 +33,16 @@ glucose_widget = ["assets/*.png"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "E402",  # PyGObject requires gi.require_version() calls before the gi.repository imports they gate
+    "DTZ",   # timestamps here are intentionally naive local time - see client/librelinkup.py's docstring
+]
+
+[tool.coverage.run]
+source = ["glucose_widget"]
