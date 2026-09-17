@@ -8,3 +8,8 @@ build/
 dist/
 .idea/
 *.iml
+.ruff_cache/
+.coverage
+coverage.xml
+junit.xml
+htmlcov/

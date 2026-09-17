@@ -42,7 +42,11 @@ from glucose_widget.config.settings import Settings, save_settings
 from glucose_widget.domain.range import GlucoseRange, classify_mgdl
 from glucose_widget.domain.reading import GlucoseReading
 from glucose_widget.domain.units import GlucoseUnit
-from glucose_widget.ui.icon_renderer import DEFAULT_TEXT_COLOR_RGBA, parse_hex_color, render_text_icon
+from glucose_widget.ui.icon_renderer import (
+    DEFAULT_TEXT_COLOR_RGBA,
+    parse_hex_color,
+    render_text_icon,
+)
 
 _APP_ID = "glucose-widget"
 

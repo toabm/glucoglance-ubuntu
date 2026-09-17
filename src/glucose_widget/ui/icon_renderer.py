@@ -32,7 +32,9 @@ _FONT_DESCRIPTION = "Sans Bold 36"
 DEFAULT_TEXT_COLOR_RGBA = (1, 1, 1, 1)  # white, matches this desktop's dark top bar
 
 
-def render_text_icon(text: str, color: tuple[float, float, float, float] = DEFAULT_TEXT_COLOR_RGBA) -> cairo.ImageSurface:
+def render_text_icon(
+    text: str, color: tuple[float, float, float, float] = DEFAULT_TEXT_COLOR_RGBA
+) -> cairo.ImageSurface:
     """Draw `text` centered on a transparent background in `color`, sized
     to fit it with a small margin. Returns a Cairo surface ready to be
     written to PNG."""
