@@ -1,4 +1,4 @@
-"""Glucose Widget: an Ubuntu tray application that displays a live glucose
+"""GlucoGlance: an Ubuntu tray application that displays a live glucose
 reading fetched from the LibreLinkUp cloud API.
 
 Package layout:

@@ -4,7 +4,7 @@ Cairo/Pango rendering to an in-memory surface needs no display server, so
 this is safe to unit-test unlike the actual tray/GTK integration.
 """
 
-from glucose_widget.ui.icon_renderer import (
+from glucoglance.ui.icon_renderer import (
     parse_hex_color,
     render_text_icon,
     render_text_icon_png_bytes,

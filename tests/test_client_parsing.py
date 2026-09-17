@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 import responses
 
-from glucose_widget.client.errors import StaleDataError
-from glucose_widget.client.librelinkup import LibreLinkUpClient, _parse_connections_response
-from glucose_widget.domain.trend import TrendArrow
+from glucoglance.client.errors import StaleDataError
+from glucoglance.client.librelinkup import LibreLinkUpClient, _parse_connections_response
+from glucoglance.domain.trend import TrendArrow
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 

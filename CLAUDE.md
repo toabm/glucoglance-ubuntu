@@ -13,7 +13,7 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-Run the app: `glucose-widget` (or `python -m glucose_widget.main`).
+Run the app: `glucoglance` (or `python -m glucoglance.main`).
 
 Run tests: `pytest` (whole suite) or `pytest tests/test_poller.py::test_name` (single test).
 
@@ -33,7 +33,7 @@ client (LibreLinkUp HTTP) -> domain (pure data/logic) -> poller (EventBus) -> ui
   - GNOME Shell caches a tray icon bitmap by filename and never re-reads it once that name has been seen, even after the file's content changes. `TrayDisplay` works around this by giving every update a brand-new, never-reused filename (an incrementing counter) and deleting old files, keeping only the last two.
   - `gi.require_version("Gtk", "3.0")` must run before anything else imports `Gtk` (Ubuntu's system default is Gtk 4) - done first thing in `main.py`, and `tray.py`/`credential_prompt.py` also set it defensively since they can be imported standalone (e.g. by tests).
   - `TrayDisplay` also tries `AyatanaAppIndicator3` first and falls back to classic `AppIndicator3`, since Ubuntu ships the Ayatana fork.
-- **`config/`**: `settings.py` is the single source of truth for every user-tunable value (poll interval, unit, range thresholds/colors, autostart) as TOML at `~/.config/glucose-widget/config.toml`; nothing hot-reloads, so a config edit needs a restart (the tray menu's "Restart" item does an `os.execv` self-restart for this). `credentials.py` stores only the password, via the system keyring - the email lives in `settings.py` since it's not secret. `autostart.py` installs/removes `~/.config/autostart/glucose-widget.desktop`, generating `Exec=` as the absolute path to the script next to the running interpreter (not the bare `glucose-widget` command, which isn't guaranteed to be on `PATH` in a login session for a venv install).
+- **`config/`**: `settings.py` is the single source of truth for every user-tunable value (poll interval, unit, range thresholds/colors, autostart) as TOML at `~/.config/glucoglance/config.toml`; nothing hot-reloads, so a config edit needs a restart (the tray menu's "Restart" item does an `os.execv` self-restart for this). `credentials.py` stores only the password, via the system keyring - the email lives in `settings.py` since it's not secret. `autostart.py` installs/removes `~/.config/autostart/glucoglance.desktop`, generating `Exec=` as the absolute path to the script next to the running interpreter (not the bare `glucoglance` command, which isn't guaranteed to be on `PATH` in a login session for a venv install).
 
 ### Testing philosophy
 
