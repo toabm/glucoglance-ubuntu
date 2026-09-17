@@ -22,6 +22,14 @@ dev = [
     "pytest-cov>=5.0",
     "responses>=0.25",
     "ruff>=0.6",
+]
+# IDE-only type stubs for gi.repository (GLib/Gtk/etc.) - kept separate from
+# `dev` because pip can't tell the real PyGObject/pycairo are already
+# provided by apt (see README's "Installing on Ubuntu"), and tries to build
+# them from source to satisfy this package's declared dependency, which
+# fails without cairo/girepository dev headers. Not needed to lint or test,
+# so CI installs only `dev`. Install with: pip install --no-deps PyGObject-stubs
+ide = [
     "PyGObject-stubs>=2.10",
 ]
 
