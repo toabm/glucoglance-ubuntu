@@ -35,13 +35,26 @@ def test_disabling_when_never_enabled_does_not_raise(tmp_path, monkeypatch):
     assert not autostart.autostart_desktop_path().exists()
 
 
-def test_exec_line_always_delays_before_launching(tmp_path, monkeypatch):
-    # Only the autostart path should ever be delayed - running from a
-    # terminal or the Applications-menu icon uses a plain Exec= with no
-    # shell wrapper, since those go through a different .desktop file
-    # entirely (or no .desktop file at all).
+def test_exec_line_has_no_shell_wrapper_or_quoting(tmp_path, monkeypatch):
+    # Regression test: an earlier version wrapped Exec= in `sh -c "..."`
+    # to run a delay first. That passed desktop-file-validate and GLib's
+    # shell_parse_argv, but both systemd-xdg-autostart-generator and
+    # gnome-session-binary itself rejected it at actual login (confirmed
+    # live via journalctl). The delay is applied via X-GNOME-Autostart-Delay
+    # instead, so Exec= must stay a single unquoted path with no shell
+    # metacharacters at all.
     monkeypatch.setattr(autostart, "_AUTOSTART_DIR", tmp_path)
     autostart.set_autostart_enabled(True)
     content = autostart.autostart_desktop_path().read_text()
-    assert f"sleep {autostart._STARTUP_DELAY_SECONDS}" in content
-    assert "glucose-widget" in content
+    exec_line = next(line for line in content.splitlines() if line.startswith("Exec="))
+    assert exec_line == exec_line.strip()
+    for char in ("\"", "'", "&", ";", "|", "`", "$"):
+        assert char not in exec_line
+    assert "glucose-widget" in exec_line
+
+
+def test_autostart_delay_key_is_present(tmp_path, monkeypatch):
+    monkeypatch.setattr(autostart, "_AUTOSTART_DIR", tmp_path)
+    autostart.set_autostart_enabled(True)
+    content = autostart.autostart_desktop_path().read_text()
+    assert f"X-GNOME-Autostart-Delay={autostart._STARTUP_DELAY_SECONDS}" in content
