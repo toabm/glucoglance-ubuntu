@@ -176,6 +176,18 @@ dependent code (`main.py`, `ui/tray.py`, `ui/credential_prompt.py`,
 `ui/display.py`, `config/credentials.py`) is deliberately manual-only -
 see CLAUDE.md's "Testing philosophy" section.
 
+If your IDE flags `gi.repository` symbols (e.g. `GLib`, `Gtk`) as
+unresolved, that's expected - PyGObject generates those modules
+dynamically from typelibs at runtime, not from real `.py` files, so
+static analyzers can't see them without type stubs. Install those
+separately from `dev` (pip otherwise tries to rebuild the real
+PyGObject/pycairo from source to satisfy this package's declared
+dependency, and fails without cairo/girepository dev headers):
+
+```bash
+pip install --no-deps PyGObject-stubs
+```
+
 ## Continuous integration
 
 Every push to `develop`/`master` and every pull request runs `ruff` and
