@@ -20,14 +20,14 @@ gi.require_version("Gtk", "3.0")
 
 from gi.repository import GLib, Gtk  # noqa: E402 (must follow gi.require_version)
 
-from glucose_widget.client.errors import AuthError, NetworkError, StaleDataError
-from glucose_widget.client.librelinkup import LibreLinkUpClient
-from glucose_widget.config.credentials import get_password, set_password
-from glucose_widget.config.settings import Settings, load_settings, save_settings
-from glucose_widget.poller.poller import EventBus, GlucosePoller, PollError, ReadingUpdated
-from glucose_widget.ui.app_icon import app_icon_path
-from glucose_widget.ui.credential_prompt import prompt_for_credentials, show_message
-from glucose_widget.ui.tray import TrayDisplay
+from glucoglance.client.errors import AuthError, NetworkError, StaleDataError
+from glucoglance.client.librelinkup import LibreLinkUpClient
+from glucoglance.config.credentials import get_password, set_password
+from glucoglance.config.settings import Settings, load_settings, save_settings
+from glucoglance.poller.poller import EventBus, GlucosePoller, PollError, ReadingUpdated
+from glucoglance.ui.app_icon import app_icon_path
+from glucoglance.ui.credential_prompt import prompt_for_credentials, show_message
+from glucoglance.ui.tray import TrayDisplay
 
 logger = logging.getLogger(__name__)
 

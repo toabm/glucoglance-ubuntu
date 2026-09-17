@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from glucose_widget.domain.trend import TrendArrow
-from glucose_widget.domain.units import GlucoseUnit, mgdl_to_mmol
+from glucoglance.domain.trend import TrendArrow
+from glucoglance.domain.units import GlucoseUnit, mgdl_to_mmol
 
 
 @dataclass(frozen=True)

@@ -7,9 +7,9 @@ fast and offline.
 import time
 from datetime import datetime
 
-from glucose_widget.domain.reading import GlucoseReading
-from glucose_widget.domain.trend import TrendArrow
-from glucose_widget.poller.poller import EventBus, GlucosePoller, PollError, ReadingUpdated
+from glucoglance.domain.reading import GlucoseReading
+from glucoglance.domain.trend import TrendArrow
+from glucoglance.poller.poller import EventBus, GlucosePoller, PollError, ReadingUpdated
 
 _SHORT_INTERVAL = 0.02
 

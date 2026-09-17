@@ -20,9 +20,9 @@ from typing import Any
 
 import requests
 
-from glucose_widget.client.errors import AuthError, NetworkError, StaleDataError
-from glucose_widget.domain.reading import GlucoseReading
-from glucose_widget.domain.trend import TrendArrow
+from glucoglance.client.errors import AuthError, NetworkError, StaleDataError
+from glucoglance.domain.reading import GlucoseReading
+from glucoglance.domain.trend import TrendArrow
 
 # Default entry point; a login response can redirect us to a region-specific
 # host instead (e.g. api-eu.libreview.io), which we then remember.

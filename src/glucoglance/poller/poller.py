@@ -22,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from glucose_widget.domain.reading import GlucoseReading
+from glucoglance.domain.reading import GlucoseReading
 
 DEFAULT_INTERVAL_SECONDS = 60
 _MAX_BACKOFF_SECONDS = 600

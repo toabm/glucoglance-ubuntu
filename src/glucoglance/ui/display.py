@@ -9,8 +9,8 @@ to implement; it requires no changes to the client, domain, or poller code.
 
 from typing import Protocol
 
-from glucose_widget.domain.reading import GlucoseReading
-from glucose_widget.domain.units import GlucoseUnit
+from glucoglance.domain.reading import GlucoseReading
+from glucoglance.domain.units import GlucoseUnit
 
 
 class Display(Protocol):

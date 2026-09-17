@@ -1,6 +1,6 @@
 """Manages the XDG autostart entry that launches this app at login.
 
-Installing/removing `~/.config/autostart/glucose-widget.desktop` is exactly
+Installing/removing `~/.config/autostart/glucoglance.desktop` is exactly
 what enables/disables autostart. That path is the standard XDG autostart
 location on Ubuntu (and GNOME/most other Linux desktops generally), but
 this project is only built and tested against Ubuntu.
@@ -9,10 +9,10 @@ this project is only built and tested against Ubuntu.
 import sys
 from pathlib import Path
 
-from glucose_widget.ui.app_icon import app_icon_path
+from glucoglance.ui.app_icon import app_icon_path
 
 _AUTOSTART_DIR = Path.home() / ".config" / "autostart"
-_DESKTOP_FILE_NAME = "glucose-widget.desktop"
+_DESKTOP_FILE_NAME = "glucoglance.desktop"
 
 # Cosmetic only: GNOME's AppIndicator extension inserts new tray icons
 # ahead of existing ones rather than appending, so this delay lets other
@@ -45,17 +45,17 @@ def _desktop_entry_content() -> str:
     """Build the .desktop file content.
 
     Exec points at the actual installed script next to the currently
-    running interpreter, not just the bare command name "glucose-widget" -
+    running interpreter, not just the bare command name "glucoglance" -
     that name isn't guaranteed to be on PATH in a login session (e.g. when
     installed into a plain venv rather than via pipx). See
     `_STARTUP_DELAY_SECONDS` above for why the delay is a separate key
     rather than part of this Exec= value.
     """
-    exec_path = Path(sys.executable).with_name("glucose-widget")
+    exec_path = Path(sys.executable).with_name("glucoglance")
     return (
         "[Desktop Entry]\n"
         "Type=Application\n"
-        "Name=Glucose Widget\n"
+        "Name=GlucoGlance\n"
         f"Exec={exec_path}\n"
         f"Icon={app_icon_path()}\n"
         "X-GNOME-Autostart-enabled=true\n"

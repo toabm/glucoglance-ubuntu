@@ -1,6 +1,6 @@
 """Tests for TrendArrow.from_api_value's handling of the API's raw integer."""
 
-from glucose_widget.domain.trend import TrendArrow
+from glucoglance.domain.trend import TrendArrow
 
 
 def test_known_values_map_correctly():

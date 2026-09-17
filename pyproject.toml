@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "glucose-widget"
+name = "glucoglance"
 version = "0.1.0"
 description = "Ubuntu tray widget showing live glucose readings from a FreeStyle Libre sensor via LibreLinkUp"
 requires-python = ">=3.11"
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-glucose-widget = "glucose_widget.main:main"
+glucoglance = "glucoglance.main:main"
 
 [project.optional-dependencies]
 dev = [
@@ -37,7 +37,7 @@ ide = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-glucose_widget = ["assets/*.png"]
+glucoglance = ["assets/*.png"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
@@ -53,5 +53,5 @@ ignore = [
 ]
 
 [tool.coverage.run]
-source = ["glucose_widget"]
+source = ["glucoglance"]
 branch = true

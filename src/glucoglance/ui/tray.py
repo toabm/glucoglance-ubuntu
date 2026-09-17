@@ -36,19 +36,20 @@ except ValueError:
 
 from gi.repository import GLib, Gtk
 
-from glucose_widget.config.autostart import set_autostart_enabled
-from glucose_widget.config.credentials import delete_password
-from glucose_widget.config.settings import Settings, save_settings
-from glucose_widget.domain.range import GlucoseRange, classify_mgdl
-from glucose_widget.domain.reading import GlucoseReading
-from glucose_widget.domain.units import GlucoseUnit
-from glucose_widget.ui.icon_renderer import (
+from glucoglance.config.autostart import set_autostart_enabled
+from glucoglance.config.credentials import delete_password
+from glucoglance.config.settings import Settings, save_settings
+from glucoglance.domain.range import GlucoseRange, classify_mgdl
+from glucoglance.domain.reading import GlucoseReading
+from glucoglance.domain.units import GlucoseUnit
+from glucoglance.ui.about_dialog import show_about
+from glucoglance.ui.icon_renderer import (
     DEFAULT_TEXT_COLOR_RGBA,
     parse_hex_color,
     render_text_icon,
 )
 
-_APP_ID = "glucose-widget"
+_APP_ID = "glucoglance"
 
 
 class TrayDisplay:
@@ -73,7 +74,7 @@ class TrayDisplay:
         # so this installs it immediately) and a manual config.toml edit.
         set_autostart_enabled(settings.autostart_enabled)
 
-        self._icon_dir = Path(tempfile.mkdtemp(prefix="glucose-widget-icons-"))
+        self._icon_dir = Path(tempfile.mkdtemp(prefix="glucoglance-icons-"))
         # Confirmed live: GNOME Shell caches a tray icon bitmap by filename
         # and never re-reads it once that name has been seen, even after
         # the file's content changes - so a fixed/alternating set of names
@@ -97,10 +98,16 @@ class TrayDisplay:
         self._indicator.set_menu(self._build_menu())
 
     def _build_menu(self) -> Gtk.Menu:
-        """Build the indicator's right-click menu: a "start at login"
-        checkbox, Restart (to pick up a config.toml edit without a
-        terminal), Log out, and Quit."""
+        """Build the indicator's right-click menu: "GlucoGlance" (doubles as
+        an About trigger), a "start at login" checkbox, Restart (to pick up
+        a config.toml edit without a terminal), Log out, and Quit."""
         menu = Gtk.Menu()
+
+        about_item = Gtk.MenuItem(label="GlucoGlance")
+        about_item.connect("activate", lambda *_args: show_about())
+        menu.append(about_item)
+
+        menu.append(Gtk.SeparatorMenuItem())
 
         autostart_item = Gtk.CheckMenuItem(label="Start at login")
         autostart_item.set_active(self._settings.autostart_enabled)
@@ -137,7 +144,7 @@ class TrayDisplay:
         entire process image - including the poller's background thread -
         so there's nothing else to shut down first."""
         shutil.rmtree(self._icon_dir, ignore_errors=True)
-        os.execv(sys.executable, [sys.executable, "-m", "glucose_widget.main"])
+        os.execv(sys.executable, [sys.executable, "-m", "glucoglance.main"])
 
     def _log_out(self) -> None:
         """Forget the stored LibreLinkUp credentials, then restart - the
