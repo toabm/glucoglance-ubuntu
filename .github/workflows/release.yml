@@ -1,0 +1,66 @@
+# Release: builds the package and publishes it to PyPI whenever a `v*` tag
+# is pushed (e.g. `v0.3.0`, tagged on master's release merge commit).
+#
+# Uses PyPI "Trusted Publishing" (OpenID Connect): PyPI trusts this exact
+# workflow in this exact repo, so no PyPI password or API token is stored
+# anywhere. The matching publisher is configured on pypi.org for project
+# `glucoglance`, workflow `release.yml`, environment `pypi`.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Catches forgetting to bump pyproject.toml before tagging, which
+      # would otherwise publish (and permanently burn) the wrong version.
+      - name: Check tag matches pyproject.toml version
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match pyproject.toml version $version"
+            exit 1
+          fi
+
+      - name: Build sdist and wheel
+        run: |
+          pip install build twine
+          python -m build
+          twine check --strict dist/*
+
+      - name: Upload distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/glucoglance/
+    permissions:
+      id-token: write  # required for Trusted Publishing
+    steps:
+      - name: Download distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

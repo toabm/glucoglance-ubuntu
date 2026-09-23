@@ -7,6 +7,17 @@ Libre sensor, via LibreLinkUp) in the Ubuntu top bar. Phase 1: just the
 number and trend arrow, refreshed roughly every minute. Threshold alarms are
 planned as a phase 2.
 
+> **Compatibility - please check before installing.** GlucoGlance only
+> works with:
+>
+> - **Ubuntu** (developed and tested on Ubuntu 24.04 with GNOME Shell 46).
+>   Windows, macOS, and other Linux distributions/desktops are not
+>   supported.
+> - **FreeStyle Libre sensors** whose readings are shared through
+>   **LibreLinkUp**. Other CGMs (Dexcom, Medtronic, Eversense, etc.) are
+>   not supported.
+> - A **LibreLinkUp account** - see Requirements below.
+
 ## ⚠️ Disclaimer
 
 **GlucoGlance is not a medical device.** It has not been reviewed or
@@ -22,16 +33,36 @@ approved by the FDA, the EMA, or any other regulator.
 - It relies on an **undocumented LibreLinkUp API** that Abbott can change
   or block at any time, so the app may stop working without warning.
 - It is provided "as is", without warranty of any kind (see
-  [LICENSE](LICENSE)). **Use it at your own risk.**
+  [LICENSE](https://github.com/toabm/glucoglance-ubuntu/blob/master/LICENSE)). **Use it at your own risk.**
 
 ## Requirements
 
-You need a LibreLinkUp **follower** account already set up: the sensor
-wearer shares their readings to LibreLinkUp, and you use a follower
-account's email/password to log in here. This app cannot talk to the
-sensor directly.
+- **Ubuntu** with the default GNOME desktop (see Compatibility above).
+- A **FreeStyle Libre sensor** whose wearer shares their readings to
+  **LibreLinkUp** from the official Libre app.
+- A LibreLinkUp **follower** account that has accepted that share: you
+  log in here with the follower account's email and password.
+
+This app cannot talk to the sensor directly - it only reads what the
+official Libre app has already uploaded to LibreLinkUp.
 
 ## Installing on Ubuntu
+
+### Quick install (from PyPI, with pipx)
+
+```bash
+sudo apt install pipx python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1
+pipx ensurepath
+pipx install --system-site-packages glucoglance
+```
+
+`--system-site-packages` is required: it lets the app reuse the GTK
+bindings installed by `apt`, which PyPI doesn't distribute. Open a new
+terminal (so `pipx ensurepath` takes effect) and run `glucoglance` - then
+skip to "Running it for the first time" below. Upgrade later with
+`pipx upgrade glucoglance`.
+
+### From source
 
 These steps assume a fresh Ubuntu machine with nothing set up yet - if
 you've already done part of this, skip ahead.
@@ -257,8 +288,8 @@ rendering, this could be simplified back to `set_label()`.
 ## Contributing
 
 Bug reports and pull requests are welcome - see
-[CONTRIBUTING.md](CONTRIBUTING.md).
+[CONTRIBUTING.md](https://github.com/toabm/glucoglance-ubuntu/blob/master/CONTRIBUTING.md).
 
 ## License
 
-MIT - see [LICENSE](LICENSE).
+MIT - see [LICENSE](https://github.com/toabm/glucoglance-ubuntu/blob/master/LICENSE).
