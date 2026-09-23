@@ -14,9 +14,14 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk  # noqa: E402 (import must follow gi.require_version)
 
+from glucoglance.ui.disclaimer import DISCLAIMER
+
 
 def prompt_for_credentials(initial_email: str = "") -> tuple[str, str] | None:
     """Show a modal dialog asking for a LibreLinkUp email and password.
+
+    The medical/affiliation disclaimer is shown above the fields, so every
+    user sees it at least once before the app starts showing readings.
 
     Returns (email, password), or None if the user cancelled.
     """
@@ -30,6 +35,12 @@ def prompt_for_credentials(initial_email: str = "") -> tuple[str, str] | None:
     content = dialog.get_content_area()
     content.set_spacing(8)
     content.set_border_width(12)
+
+    disclaimer_label = Gtk.Label(label=DISCLAIMER)
+    disclaimer_label.set_line_wrap(True)
+    disclaimer_label.set_max_width_chars(48)
+    disclaimer_label.set_xalign(0)
+    content.add(disclaimer_label)
 
     email_entry = Gtk.Entry()
     email_entry.set_placeholder_text("LibreLinkUp email")

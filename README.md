@@ -7,6 +7,23 @@ Libre sensor, via LibreLinkUp) in the Ubuntu top bar. Phase 1: just the
 number and trend arrow, refreshed roughly every minute. Threshold alarms are
 planned as a phase 2.
 
+## ⚠️ Disclaimer
+
+**GlucoGlance is not a medical device.** It has not been reviewed or
+approved by the FDA, the EMA, or any other regulator.
+
+- It is an **unofficial, independent** project. It is not affiliated
+  with, endorsed by, or supported by Abbott. FreeStyle Libre and
+  LibreLinkUp are trademarks of Abbott, used here only to describe what
+  the app works with.
+- Readings may be **delayed, missing or wrong**. **Do not use this app to
+  make treatment decisions** (e.g. insulin dosing). Always confirm with
+  your sensor's official app or a fingerstick blood glucose meter.
+- It relies on an **undocumented LibreLinkUp API** that Abbott can change
+  or block at any time, so the app may stop working without warning.
+- It is provided "as is", without warranty of any kind (see
+  [LICENSE](LICENSE)). **Use it at your own risk.**
+
 ## Requirements
 
 You need a LibreLinkUp **follower** account already set up: the sensor
@@ -224,3 +241,22 @@ something fixable from the app side. Instead, `ui/icon_renderer.py` draws
 the reading as a small bitmap and that image becomes the tray icon itself,
 which does render reliably. If a future Shell/extension update fixes label
 rendering, this could be simplified back to `set_label()`.
+
+## Privacy
+
+- Your LibreLinkUp password is stored only in your system keyring
+  (GNOME Keyring), never in a plain file. Your email is stored in
+  `~/.config/glucoglance/config.toml`.
+- The app talks only to Abbott's LibreLinkUp servers. It has no server of
+  its own, no analytics and no telemetry, so your readings and credentials
+  never go anywhere else.
+- Tray menu → **Log out** deletes the stored password and email.
+
+## Contributing
+
+Bug reports and pull requests are welcome - see
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+MIT - see [LICENSE](LICENSE).
