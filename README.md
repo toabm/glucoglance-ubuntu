@@ -7,6 +7,12 @@ Libre sensor, via LibreLinkUp) in the Ubuntu top bar. Phase 1: just the
 number and trend arrow, refreshed roughly every minute. Threshold alarms are
 planned as a phase 2.
 
+![GlucoGlance in the Ubuntu top bar, showing a reading of 144 mg/dL in green with a steady trend arrow, next to the usual system icons](https://raw.githubusercontent.com/toabm/glucoglance-ubuntu/master/docs/screenshot-tray.png)
+
+*The reading and trend arrow sit in the top bar like any other tray icon.
+The color follows your configured range: green in range, yellow high, red
+low.*
+
 > **Compatibility - please check before installing.** GlucoGlance only
 > works with:
 >
