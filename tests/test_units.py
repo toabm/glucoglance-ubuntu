@@ -1,6 +1,6 @@
 """Tests for glucose unit conversion (domain.units)."""
 
-from glucose_widget.domain.units import mgdl_to_mmol, mmol_to_mgdl
+from glucoglance.domain.units import mgdl_to_mmol, mmol_to_mgdl
 
 
 def test_mgdl_to_mmol_known_reference_value():

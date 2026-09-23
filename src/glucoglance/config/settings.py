@@ -14,10 +14,10 @@ from pathlib import Path
 
 import tomli_w
 
-from glucose_widget.domain.range import DEFAULT_HIGH_THRESHOLD_MGDL, DEFAULT_LOW_THRESHOLD_MGDL
-from glucose_widget.domain.units import GlucoseUnit
+from glucoglance.domain.range import DEFAULT_HIGH_THRESHOLD_MGDL, DEFAULT_LOW_THRESHOLD_MGDL
+from glucoglance.domain.units import GlucoseUnit
 
-_APP_DIR_NAME = "glucose-widget"
+_APP_DIR_NAME = "glucoglance"
 _CONFIG_FILE_NAME = "config.toml"
 
 # Defaults for the tray icon's range colors, as '#rrggbb' hex - the format

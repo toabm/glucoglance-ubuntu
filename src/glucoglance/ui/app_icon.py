@@ -14,4 +14,4 @@ from pathlib import Path
 def app_icon_path() -> Path:
     """Absolute path to the app's icon PNG, suitable for a .desktop file's
     Icon= key or any other place that needs a real file path."""
-    return Path(str(files("glucose_widget") / "assets" / "icon.png"))
+    return Path(str(files("glucoglance") / "assets" / "icon.png"))

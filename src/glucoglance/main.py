@@ -20,14 +20,14 @@ gi.require_version("Gtk", "3.0")
 
 from gi.repository import GLib, Gtk  # noqa: E402 (must follow gi.require_version)
 
-from glucose_widget.client.errors import AuthError, NetworkError, StaleDataError
-from glucose_widget.client.librelinkup import LibreLinkUpClient
-from glucose_widget.config.credentials import get_password, set_password
-from glucose_widget.config.settings import Settings, load_settings, save_settings
-from glucose_widget.poller.poller import EventBus, GlucosePoller, PollError, ReadingUpdated
-from glucose_widget.ui.app_icon import app_icon_path
-from glucose_widget.ui.credential_prompt import prompt_for_credentials, show_message
-from glucose_widget.ui.tray import TrayDisplay
+from glucoglance.client.errors import AuthError, NetworkError, StaleDataError
+from glucoglance.client.librelinkup import LibreLinkUpClient
+from glucoglance.config.credentials import get_password, set_password
+from glucoglance.config.settings import Settings, load_settings, save_settings
+from glucoglance.poller.poller import EventBus, GlucosePoller, PollErrorEvent, ReadingUpdatedEvent
+from glucoglance.ui.app_icon import app_icon_path
+from glucoglance.ui.credential_prompt import prompt_for_credentials, show_message
+from glucoglance.ui.tray import TrayDisplay
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class Application:
     def _ensure_client(self) -> None:
         """Make sure we have a working LibreLinkUpClient: prompt for
         credentials if none are stored yet, and actually try a request
-        before proceeding so a login *failure* is reported to the user
+        before proceeding, so a login *failure* is reported to the user
         immediately rather than only showing up later as a tray glyph.
 
         Success is only announced with a popup when credentials were just
@@ -113,22 +113,21 @@ class Application:
             return True
 
     def _start_poller(self) -> None:
-        """Create a fresh poller for the current client and subscribe our
-        event handler to it."""
+        """Create a fresh poller for the current client and subscribe our event handler to it."""
         assert self.client is not None
         bus = EventBus()
-        bus.subscribe(self._handle_event)
+        bus.subscribe(self._handle_event)  # Subscribe our event handler to the bus of events.
         self.poller = GlucosePoller(
             self.client,
             interval_seconds=self.settings.interval_seconds,
             bus=bus,
         )
+        assert self.poller is not None
         self.poller.start()
 
     def _handle_event(self, event) -> None:
-        """Adapt a poller event into a Display call (runs on the poller's
-        background thread)."""
-        if isinstance(event, ReadingUpdated):
+        """Adapt a poller event into a Display call (runs on the poller's background thread)."""
+        if isinstance(event, ReadingUpdatedEvent):
             logger.info(
                 "Reading updated: %s mg/dL, trend=%s",
                 event.reading.value_mgdl,
@@ -136,7 +135,7 @@ class Application:
             )
             self.display.show_reading(event.reading, self.settings.unit)
             self._remember_resolved_host()
-        elif isinstance(event, PollError):
+        elif isinstance(event, PollErrorEvent):
             logger.warning(
                 "Poll failed (%d consecutive): %s", event.consecutive_failures, event.error
             )
@@ -196,8 +195,8 @@ def main() -> None:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
-    # Applies to every GTK window/dialog created from here on (credential
-    # prompt, message dialogs), so it only needs setting once.
+    # Applies to every GTK window/dialog created from here on (credential prompt, message dialogs), so it only needs
+    # setting once.
     Gtk.Window.set_default_icon_from_file(str(app_icon_path()))
     Application().start()
 

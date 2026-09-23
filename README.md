@@ -1,6 +1,6 @@
-# Glucose Widget for Ubuntu
+# GlucoGlance for Ubuntu
 
-[![CI](https://github.com/toabm/glucose-widget-ubuntu/actions/workflows/ci.yml/badge.svg)](https://github.com/toabm/glucose-widget-ubuntu/actions/workflows/ci.yml)
+[![CI](https://github.com/toabm/glucoglance-ubuntu/actions/workflows/ci.yml/badge.svg)](https://github.com/toabm/glucoglance-ubuntu/actions/workflows/ci.yml)
 
 A tray widget that shows your current glucose reading (from a FreeStyle
 Libre sensor, via LibreLinkUp) in the Ubuntu top bar. Phase 1: just the
@@ -22,8 +22,8 @@ you've already done part of this, skip ahead.
 **1. Get the code:**
 
 ```bash
-git clone https://github.com/toabm/glucose-widget-ubuntu.git
-cd glucose-widget-ubuntu
+git clone https://github.com/toabm/glucoglance-ubuntu.git
+cd glucoglance-ubuntu
 ```
 
 **2. Install the system packages** the tray icon needs (these come from
@@ -31,7 +31,7 @@ cd glucose-widget-ubuntu
 index doesn't distribute):
 
 ```bash
-sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1
+sudo apt install python3-venv python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1
 ```
 
 (If your Ubuntu/distro version ships classic `AppIndicator3` instead of
@@ -49,8 +49,8 @@ source .venv/bin/activate
 pip install .
 ```
 
-That's the whole install. The `glucose-widget` command now exists at
-`.venv/bin/glucose-widget` (and on your `PATH` while the venv is
+That's the whole install. The `glucoglance` command now exists at
+`.venv/bin/glucoglance` (and on your `PATH` while the venv is
 activated).
 
 ## Running it for the first time
@@ -59,12 +59,12 @@ With the venv activated (`source .venv/bin/activate`, if you're in a new
 terminal):
 
 ```bash
-glucose-widget
+glucoglance
 ```
 
 A small dialog pops up asking for your LibreLinkUp email and password (see
 Requirements above). Enter them and press OK. The email is saved to
-`~/.config/glucose-widget/config.toml`; the password is stored in your
+`~/.config/glucoglance/config.toml`; the password is stored in your
 system keyring (GNOME Keyring), never in plaintext. A number should then
 appear in your top bar within a few seconds - that's your current glucose
 reading.
@@ -80,21 +80,21 @@ Right-click the tray icon for:
 
 ## Adding it to your Applications menu
 
-This is separate from "start at login" below: this makes Glucose Widget
+This is separate from "start at login" below: this makes GlucoGlance
 show up as a proper icon in GNOME's Activities overview and app search
 (so you can launch it manually, or pin it to the Dock), rather than only
 starting silently in the background. Run this once, from the repo
 directory, with the venv already created as above:
 
 ```bash
-test -x .venv/bin/glucose-widget || { echo "Run this from the glucose-widget-ubuntu directory (the venv wasn't found here)"; exit 1; }
-ICON_PATH=$(.venv/bin/python3 -c "from glucose_widget.ui.app_icon import app_icon_path; print(app_icon_path())")
+test -x .venv/bin/glucoglance || { echo "Run this from the glucoglance-ubuntu directory (the venv wasn't found here)"; exit 1; }
+ICON_PATH=$(.venv/bin/python3 -c "from glucoglance.ui.app_icon import app_icon_path; print(app_icon_path())")
 mkdir -p ~/.local/share/applications
-cat > ~/.local/share/applications/glucose-widget.desktop <<EOF
+cat > ~/.local/share/applications/glucoglance.desktop <<EOF
 [Desktop Entry]
 Type=Application
-Name=Glucose Widget
-Exec=$(pwd)/.venv/bin/glucose-widget
+Name=GlucoGlance
+Exec=$(pwd)/.venv/bin/glucoglance
 Icon=$ICON_PATH
 Comment=Shows current blood glucose reading in the top bar
 Terminal=false
@@ -102,7 +102,7 @@ Categories=Utility;
 EOF
 ```
 
-It should now appear if you search for "Glucose Widget" in GNOME's
+It should now appear if you search for "GlucoGlance" in GNOME's
 Activities overview (press the Super/Windows key and start typing). From
 there you can drag it onto the Dock to pin it.
 
@@ -113,13 +113,13 @@ all users on the machine. GNOME scans both identically, so this works the
 same either way; no need to move it.)
 
 (The `Exec=` line uses an absolute path to the venv you just created,
-rather than the bare `glucose-widget` command, since a graphical launcher
+rather than the bare `glucoglance` command, since a graphical launcher
 doesn't necessarily have your venv on its `PATH`. If you ever move the
-`glucose-widget-ubuntu` folder, re-run the command above to update it.)
+`glucoglance-ubuntu` folder, re-run the command above to update it.)
 
 ## Configuration
 
-Settings live at `~/.config/glucose-widget/config.toml` (created with
+Settings live at `~/.config/glucoglance/config.toml` (created with
 defaults on first run). Notable options:
 
 ```toml
@@ -133,12 +133,12 @@ color_high = "#F5D334"
 autostart_enabled = true   # start automatically at login (see below)
 ```
 
-Edit the file and restart `glucose-widget` for changes to take effect.
+Edit the file and restart `glucoglance` for changes to take effect.
 
 ## Running automatically at login
 
 Enabled by default - on every startup the app installs (or removes) a
-`~/.config/autostart/glucose-widget.desktop` entry to match the
+`~/.config/autostart/glucoglance.desktop` entry to match the
 `autostart_enabled` setting. That path is the standard XDG autostart
 location on Ubuntu (and GNOME/most other Linux desktops generally), but
 this project is only built and tested against Ubuntu - see "Installing on
@@ -168,7 +168,7 @@ install above skips:
 ```bash
 pip install -e ".[dev]"
 ruff check .                                          # lint
-pytest --cov=glucose_widget --cov-report=term-missing # tests + coverage
+pytest --cov=glucoglance --cov-report=term-missing # tests + coverage
 ```
 
 Overall coverage sits around 49% by design, not by accident: GTK/keyring-

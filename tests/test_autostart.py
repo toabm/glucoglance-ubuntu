@@ -5,7 +5,7 @@ real ~/.config/autostart, so this never touches the actual desktop
 session's autostart list.
 """
 
-from glucose_widget.config import autostart
+from glucoglance.config import autostart
 
 
 def test_enabling_creates_desktop_file(tmp_path, monkeypatch):
@@ -19,7 +19,7 @@ def test_desktop_file_points_at_the_running_interpreter(tmp_path, monkeypatch):
     autostart.set_autostart_enabled(True)
     content = autostart.autostart_desktop_path().read_text()
     assert "Exec=" in content
-    assert "glucose-widget" in content
+    assert "glucoglance" in content
 
 
 def test_disabling_removes_desktop_file(tmp_path, monkeypatch):
@@ -50,7 +50,7 @@ def test_exec_line_has_no_shell_wrapper_or_quoting(tmp_path, monkeypatch):
     assert exec_line == exec_line.strip()
     for char in ("\"", "'", "&", ";", "|", "`", "$"):
         assert char not in exec_line
-    assert "glucose-widget" in exec_line
+    assert "glucoglance" in exec_line
 
 
 def test_autostart_delay_key_is_present(tmp_path, monkeypatch):

@@ -1,6 +1,6 @@
 """Tests for domain.range's low/normal/high classification."""
 
-from glucose_widget.domain.range import GlucoseRange, classify_mgdl
+from glucoglance.domain.range import GlucoseRange, classify_mgdl
 
 
 def test_below_threshold_is_low():

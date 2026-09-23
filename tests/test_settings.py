@@ -2,8 +2,8 @@
 real filesystem location.
 """
 
-from glucose_widget.config.settings import Settings, config_path, load_settings, save_settings
-from glucose_widget.domain.units import GlucoseUnit
+from glucoglance.config.settings import Settings, config_path, load_settings, save_settings
+from glucoglance.domain.units import GlucoseUnit
 
 
 def test_defaults_when_no_file_exists(tmp_path, monkeypatch):

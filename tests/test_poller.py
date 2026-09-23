@@ -7,9 +7,9 @@ fast and offline.
 import time
 from datetime import datetime
 
-from glucose_widget.domain.reading import GlucoseReading
-from glucose_widget.domain.trend import TrendArrow
-from glucose_widget.poller.poller import EventBus, GlucosePoller, PollError, ReadingUpdated
+from glucoglance.domain.reading import GlucoseReading
+from glucoglance.domain.trend import TrendArrow
+from glucoglance.poller.poller import EventBus, GlucosePoller, PollErrorEvent, ReadingUpdatedEvent
 
 _SHORT_INTERVAL = 0.02
 
@@ -67,7 +67,7 @@ def test_publishes_reading_updated_on_success():
     wait_until(lambda: len(events) >= 1)
     poller.stop()
 
-    assert isinstance(events[0], ReadingUpdated)
+    assert isinstance(events[0], ReadingUpdatedEvent)
     assert events[0].reading.value_mgdl == 118
 
 
@@ -81,7 +81,7 @@ def test_publishes_poll_error_with_increasing_failure_count():
     wait_until(lambda: len(events) >= 2)
     poller.stop()
 
-    assert all(isinstance(e, PollError) for e in events[:2])
+    assert all(isinstance(e, PollErrorEvent) for e in events[:2])
     assert events[0].consecutive_failures == 1
     assert events[1].consecutive_failures == 2
 
@@ -96,8 +96,8 @@ def test_failure_count_resets_after_a_success():
     wait_until(lambda: len(events) >= 2)
     poller.stop()
 
-    assert isinstance(events[0], PollError)
-    assert isinstance(events[1], ReadingUpdated)
+    assert isinstance(events[0], PollErrorEvent)
+    assert isinstance(events[1], ReadingUpdatedEvent)
 
 
 def test_stop_joins_promptly_even_mid_backoff():

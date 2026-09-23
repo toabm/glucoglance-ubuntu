@@ -6,7 +6,7 @@ The account email is treated as a non-secret identifier and lives in
 
 import keyring
 
-_SERVICE_NAME = "glucose-widget"
+_SERVICE_NAME = "glucoglance"
 
 
 def get_password(email: str) -> str | None:
