@@ -11,7 +11,7 @@ This project was renamed from `glucose-widget-ubuntu` (Python package `glucose_w
 Setup (requires system GTK/AppIndicator bindings, not just pip packages):
 
 ```bash
-sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1
+sudo apt install python3-venv python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1
 python3 -m venv --system-site-packages .venv   # --system-site-packages is required so python3-gi is reusable
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -35,7 +35,7 @@ client (LibreLinkUp HTTP) -> domain (pure data/logic) -> poller (EventBus) -> ui
 
 - **`client/librelinkup.py`**: talks to the unofficial LibreLinkUp API (there is no official third-party API - this impersonates the official Android app's requests). Its only public method, `get_latest_reading()`, always returns a `GlucoseReading` or raises one of `AuthError` / `NetworkError` / `StaleDataError` - callers never see raw HTTP/JSON errors. Handles login, a possible region redirect (caching the resolved host into `Settings.base_host`), and an `Account-Id` header (SHA-256 of the login response's user id) that the API requires for `/llu/connections`. The `version` header spoofs the official app's version and is **version-gated by Abbott's backend** - it has already needed bumping once (a stale version triggers a 403 with body `{"status": 920, "data": {"minimumVersion": ...}}`); if reads start failing with that shape, bump `_REQUEST_HEADERS["version"]`.
 - **`domain/`**: plain data and pure functions, no I/O. `GlucoseReading` always stores its value in mg/dL (the API's native unit) - unit conversion (`domain/units.py`) and range classification (`domain/range.py`, thresholds configurable via `Settings`) happen only at display time, never duplicated elsewhere.
-- **`poller/poller.py`**: a background `threading.Thread` (not asyncio - the rest of the app is GTK/GLib callback-driven, so a plain thread avoids running two event loops) that calls the client on an interval and publishes `ReadingUpdated` / `PollError` events on an `EventBus`. This bus is the intentional seam for phase 2 (`alerts/`, currently just a stub) to subscribe to the same reading stream as the UI without touching this code.
+- **`poller/poller.py`**: a background `threading.Thread` (not asyncio - the rest of the app is GTK/GLib callback-driven, so a plain thread avoids running two event loops) that calls the client on an interval and publishes `ReadingUpdatedEvent` / `PollErrorEvent` events on an `EventBus`. This bus is the intentional seam for phase 2 (`alerts/`, currently just a stub) to subscribe to the same reading stream as the UI without touching this code.
 - **`ui/`**: `Display` (in `display.py`) is the protocol `main.py` talks to; `TrayDisplay` (`tray.py`) is the only implementation. Non-obvious things here:
   - AppIndicator's built-in text **label** feature does not render under this project's target environment (GNOME Shell 46 + `ubuntu-appindicators`) even though the app publishes it correctly over D-Bus (confirmed by direct inspection) - a Shell-side bug, not fixable from here. Workaround: `ui/icon_renderer.py` renders the reading as a bitmap (Cairo/Pango) and that image *is* the tray icon.
   - GNOME Shell caches a tray icon bitmap by filename and never re-reads it once that name has been seen, even after the file's content changes. `TrayDisplay` works around this by giving every update a brand-new, never-reused filename (an incrementing counter) and deleting old files, keeping only the last two.

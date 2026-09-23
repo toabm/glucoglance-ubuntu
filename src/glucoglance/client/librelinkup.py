@@ -12,6 +12,66 @@ Everything the rest of the app needs is exposed through one method:
 `get_latest_reading()`. It always returns a fully-formed GlucoseReading or
 raises one of the errors in `client.errors` - callers never see raw HTTP or
 JSON errors.
+
+Response field reference (GET /llu/connections, one connection object in the
+`data` array). Only `glucoseMeasurement`'s fields marked USED below are
+actually parsed today, by `_parse_connections_response()`. Everything else
+is kept here so a future feature (e.g. phase 2 alerts wanting `alarmRules`,
+or a "sensor days left" display wanting `sensor`) doesn't need to rediscover
+the API's shape from scratch.
+
+Connection object:
+  id                    - this connection record's own ID (unused)
+  patientId             - sensor wearer's patient ID (unused)
+  firstName, lastName   - sensor wearer's name (unused)
+  status                - connection status code (unused)
+  country               - wearer's registered country, e.g. "ES" (unused)
+  created               - unix timestamp the connection was created (unused)
+  uom                   - account-level unit of measure, 1=mg/dL (unused;
+                          redundant with glucoseMeasurement.GlucoseUnits)
+  targetHigh, targetLow - wearer's target range from their own LibreLinkUp
+                          app settings (unused - range classification uses
+                          domain/range.py + Settings-configured thresholds
+                          instead, not this)
+  glucoseAlarm          - active alarm state, if any (unused)
+  alarmRules            - wearer's configured alarm thresholds, with h/l/f
+                          sub-blocks for high/low/fast-drop (unused; likely
+                          relevant to phase 2 alerts)
+  patientDevice         - reading device metadata: did/dtid (device
+                          id/type), v (firmware version), h/l/hl/ll
+                          (device-side high/low flags+values),
+                          fixedLowAlarmValues, alarms (bool), u (timestamp)
+                          (unused)
+  sensor                - physical sensor metadata: sn (serial), a
+                          (activation timestamp), w (wear duration), pt,
+                          lj, s, deviceId (unused)
+  glucoseItem           - duplicate of glucoseMeasurement, same shape
+                          (unused)
+  glucoseMeasurement    - the current reading, see below
+
+glucoseMeasurement:
+  Value            - glucose value in the account's display unit (USED ->
+                     GlucoseReading.value_mgdl)
+  Timestamp        - reading time, account-local naive datetime (USED ->
+                     GlucoseReading.timestamp; also drives the staleness
+                     check)
+  TrendArrow       - direction code 1-5 (USED -> GlucoseReading.trend, via
+                     TrendArrow.from_api_value)
+  isHigh, isLow    - API's own range flags (USED -> GlucoseReading.is_high
+                     / is_low)
+  ValueInMgPerDl   - same value, always in mg/dL regardless of account unit
+                     (unused - NOTE: `Value` is only actually mg/dL because
+                     this account's `GlucoseUnits` is 1; an mmol/L account
+                     would make `Value` diverge from `ValueInMgPerDl`, and
+                     GlucoseReading's mg/dL assumption would silently break)
+  FactoryTimestamp - sensor-side timestamp, vs `Timestamp` being
+                     account-local (unused)
+  GlucoseUnits     - unit code for `Value`: 1=mg/dL, 2=mmol/L (unused - see
+                     ValueInMgPerDl note above)
+  MeasurementColor - API's own in/out-of-range color code (unused -
+                     superseded by domain/range.py's own classification)
+  TrendMessage     - optional human-readable trend text (unused)
+  type             - measurement type code, 1=normal reading (unused)
 """
 
 import hashlib
@@ -41,7 +101,7 @@ _REQUEST_HEADERS = {
 
 # A reading older than this is treated as stale: the wearer's phone has
 # likely stopped relaying data to LibreLinkUp.
-_STALE_AFTER = timedelta(minutes=20)
+_STALE_AFTER = timedelta(minutes=5)
 
 # The token LibreLinkUp issues is short-lived; refresh a little before it
 # actually expires rather than racing the clock.
