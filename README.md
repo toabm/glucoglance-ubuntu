@@ -31,7 +31,7 @@ cd glucoglance-ubuntu
 index doesn't distribute):
 
 ```bash
-sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1
+sudo apt install python3-venv python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1
 ```
 
 (If your Ubuntu/distro version ships classic `AppIndicator3` instead of
