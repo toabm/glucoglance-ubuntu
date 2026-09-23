@@ -10,6 +10,8 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk  # noqa: E402 (import must follow gi.require_version)
 
+from glucoglance.ui.disclaimer import DISCLAIMER
+
 _MAINTAINER_EMAIL = "toabm@yahoo.es"
 _REPO_URL = "https://github.com/toabm/glucoglance-ubuntu"
 _SUMMARY = (
@@ -19,8 +21,8 @@ _SUMMARY = (
 
 
 def show_about() -> None:
-    """Show a simple dialog with the app's summary, version, repo, and
-    maintainer contact."""
+    """Show a simple dialog with the app's summary, version, repo,
+    maintainer contact, license, and the medical/affiliation disclaimer."""
     dialog = Gtk.MessageDialog(
         message_type=Gtk.MessageType.INFO,
         buttons=Gtk.ButtonsType.OK,
@@ -30,7 +32,9 @@ def show_about() -> None:
         f"{_SUMMARY}\n\n"
         f"Version: {_installed_version()}\n"
         f"Repository: {_REPO_URL}\n"
-        f"Contact: {_MAINTAINER_EMAIL}"
+        f"Contact: {_MAINTAINER_EMAIL}\n"
+        f"License: MIT\n\n"
+        f"{DISCLAIMER}"
     )
     dialog.run()
     dialog.destroy()
