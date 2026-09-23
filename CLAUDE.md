@@ -59,6 +59,14 @@ GitHub Actions (`.github/workflows/ci.yml`) lints and tests every push to `devel
 
 Normal flow is committing to `develop` (or a feature branch off it) and opening a PR into `master` when asked to ship something.
 
+### Releases and PyPI
+
+The package is published on PyPI as [`glucoglance`](https://pypi.org/project/glucoglance/). Release flow: bump `version` in `pyproject.toml` on `develop`, open a PR from `develop` into `master`, merge once CI passes (merge commit, not squash), then push an annotated `vX.Y.Z` tag on the merge commit. Pushing the tag runs `.github/workflows/release.yml`, which checks that the tag matches `pyproject.toml`'s version, builds the sdist and wheel, and publishes via PyPI **Trusted Publishing**: no token or password is stored anywhere, and PyPI trusts only this repo + `release.yml` + the `pypi` environment. Renaming the workflow file, the environment, or the repo breaks publishing until the trusted publisher on pypi.org is updated to match.
+
+PyPI never accepts the same version number twice, even after deleting a release, so a pushed tag is effectively final - bump and verify before tagging. If only the publish job fails (e.g. a PyPI-side config problem), `gh run rerun <run-id> --failed` retries it without a new tag.
+
+The wheel must stay installable with `pipx install --system-site-packages glucoglance` (the README's quick install): GTK/AppIndicator come from apt, so never add PyGObject/pycairo to `dependencies`, and keep non-Python files the app needs (e.g. `assets/*.png`) in `[tool.setuptools.package-data]`.
+
 ## Project status
 
 Phase 1 (live tray display) is done and has been verified end-to-end against the real LibreLinkUp API, including a real autostart-at-login test after a full reboot. Phase 2 (threshold alarms, subscribing to the poller's `EventBus`) is not started - `alerts/base.py` is an empty placeholder.
