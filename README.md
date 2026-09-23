@@ -216,10 +216,12 @@ pip install --no-deps PyGObject-stubs
 Every push to `develop`/`master` and every pull request runs `ruff` and
 the full test suite (`.github/workflows/ci.yml`), publishing a test
 report and a coverage summary (including diff/patch coverage on PRs) as
-a PR comment. Note: this doesn't currently *block* merging on failure -
-GitHub's required-status-checks branch protection needs GitHub Pro on a
-private repo, which this one doesn't have (see `master` being PR-only by
-convention rather than by enforcement, for the same reason).
+a PR comment. `master` is protected: it only accepts changes through a
+pull request, and the "Lint & Test" check must pass before merging.
+
+For PRs opened from a fork, the test/coverage report job is skipped -
+GitHub gives fork PRs a read-only token, so it couldn't post its comment
+anyway. "Lint & Test" still runs, and its log shows the full results.
 
 ## Project layout
 

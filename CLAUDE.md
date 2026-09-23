@@ -55,9 +55,9 @@ Coverage includes branches (`[tool.coverage.run] branch = true`), not just lines
 
 ## CI and branch workflow
 
-GitHub Actions (`.github/workflows/ci.yml`) lints and tests every push to `develop`/`master` and every PR, publishing a JUnit test report and a coverage summary (with diff/patch coverage on PRs) as a sticky PR comment. This **cannot currently block a PR merge on failure** - GitHub's required-status-checks branch protection needs GitHub Pro on a private repo, which this one doesn't have.
+GitHub Actions (`.github/workflows/ci.yml`) lints and tests every push to `develop`/`master` and every PR, publishing a JUnit test report and a coverage summary (with diff/patch coverage on PRs) as a sticky PR comment. The repo is public, and `master` has branch protection: changes only through a PR, the `Lint & Test` check must pass, and this applies to admins too (so direct pushes and force-pushes to `master` are rejected). The `report` job is skipped for PRs from forks, since GitHub gives fork PRs a read-only `GITHUB_TOKEN` and its check-run/comment steps would fail - so never make it a required check.
 
-For the same reason, `master` is **PR-only by convention, not by enforcement**: don't push commits directly to `master` unless explicitly asked to. Normal flow is committing to `develop` (or a feature branch off it) and opening a PR into `master` when asked to ship something.
+Normal flow is committing to `develop` (or a feature branch off it) and opening a PR into `master` when asked to ship something.
 
 ## Project status
 
