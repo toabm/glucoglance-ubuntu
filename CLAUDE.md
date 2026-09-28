@@ -65,6 +65,8 @@ The package is published on PyPI as [`glucoglance`](https://pypi.org/project/glu
 
 PyPI never accepts the same version number twice, even after deleting a release, so a pushed tag is effectively final - bump and verify before tagging. If only the publish job fails (e.g. a PyPI-side config problem), `gh run rerun <run-id> --failed` retries it without a new tag.
 
+The same tag also builds a `.deb` (`packaging/deb/build-deb.sh`) and attaches it to a GitHub Release for the tag. It's built by unpacking the release wheel into `/usr/lib/python3/dist-packages`, not with a `debian/` + dh-python source build, because `pyproject.toml` needs setuptools >= 77 and Ubuntu 24.04 ships 68. So the `.deb`'s version always comes from `pyproject.toml` (no `debian/changelog` to bump). Its apt `Depends:` line in that script must track `dependencies` in `pyproject.toml` - adding a Python dependency means adding its `python3-*` apt package there too. Test changes to it in a clean `ubuntu:24.04` container: build the wheel, run the script, `apt install ./dist/*.deb`.
+
 The wheel must stay installable with `pipx install --system-site-packages glucoglance` (the README's quick install): GTK/AppIndicator come from apt, so never add PyGObject/pycairo to `dependencies`, and keep non-Python files the app needs (e.g. `assets/*.png`) in `[tool.setuptools.package-data]`.
 
 ## Project status

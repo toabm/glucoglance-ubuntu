@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=GlucoGlance
+Comment=Shows current blood glucose reading in the top bar
+Exec=glucoglance
+Icon=glucoglance
+Terminal=false
+Categories=Utility;
+Keywords=glucose;libre;librelinkup;cgm;tray;

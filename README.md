@@ -54,6 +54,23 @@ official Libre app has already uploaded to LibreLinkUp.
 
 ## Installing on Ubuntu
 
+### Quick install (.deb package)
+
+Download `glucoglance_X.Y.Z_all.deb` from the
+[latest release](https://github.com/toabm/glucoglance-ubuntu/releases/latest),
+then install it with `apt` (the `./` matters - it tells `apt` this is a
+local file, and `apt` then pulls in the GTK/AppIndicator dependencies
+itself):
+
+```bash
+sudo apt install ./glucoglance_*_all.deb
+```
+
+Then launch "GlucoGlance" from the Activities overview (or run
+`glucoglance`) and skip to "Running it for the first time" below. To
+upgrade, install a newer `.deb` the same way - it doesn't update itself
+through `apt upgrade`. Remove it with `sudo apt remove glucoglance`.
+
 ### Quick install (from PyPI, with pipx)
 
 ```bash
