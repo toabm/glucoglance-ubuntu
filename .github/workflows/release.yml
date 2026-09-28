@@ -1,5 +1,7 @@
 # Release: builds the package and publishes it to PyPI whenever a `v*` tag
-# is pushed (e.g. `v0.3.0`, tagged on master's release merge commit).
+# is pushed (e.g. `v0.3.0`, tagged on master's release merge commit). It
+# also builds a .deb from the same wheel and attaches it to a GitHub
+# Release for that tag, for `sudo apt install ./glucoglance_X.Y.Z_all.deb`.
 #
 # Uses PyPI "Trusted Publishing" (OpenID Connect): PyPI trusts this exact
 # workflow in this exact repo, so no PyPI password or API token is stored
@@ -64,3 +66,33 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  deb:
+    name: Build .deb and attach to GitHub Release
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write  # create the GitHub Release and upload the .deb to it
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Download distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Build .deb from the wheel
+        run: packaging/deb/build-deb.sh dist/*.whl deb/
+
+      # Creates the Release on first run; on a re-run (`gh run rerun`) it
+      # already exists, so just replace the .deb on it.
+      - name: Attach .deb to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "GlucoGlance ${GITHUB_REF_NAME#v}"
+          fi
+          gh release upload "$GITHUB_REF_NAME" deb/*.deb --clobber
