@@ -12,6 +12,8 @@ The rendered image is intentionally not square - AppIndicator/GNOME Shell
 icons scale to the panel's row height while keeping their own aspect ratio,
 so a short wide image (e.g. "118 →") renders fine, similar to how
 built-in indicators like the keyboard layout switcher show short text.
+The catch is that the icon's horizontal slot is the bitmap's native width,
+so the bitmap has to be rendered at about panel height (see _RENDER_HEIGHT).
 """
 
 import cairo
@@ -21,14 +23,15 @@ gi.require_version("Pango", "1.0")
 gi.require_version("PangoCairo", "1.0")
 from gi.repository import Pango, PangoCairo  # noqa: E402 (must follow gi.require_version)
 
-# Rendered at a fixed height taller than a typical panel row and let the
-# Shell scale it down - crisper than rendering at the exact target size.
-# The Shell always scales the whole bitmap to the panel's row height, so
-# shrinking the font (relative to this fixed height) is what actually makes
-# the icon look smaller on screen - shrinking _RENDER_HEIGHT itself would
-# just get scaled back up to the same on-screen size.
-_RENDER_HEIGHT = 64
-_FONT_DESCRIPTION = "Sans Bold 36"
+# Rendered at (roughly) the panel's actual row height, not larger. For wide
+# images (width >= 1.5x height) the ubuntu-appindicators extension sizes the
+# icon's slot to the bitmap's *native* pixel width, then scales the image
+# down to fit the row height inside that slot - so any extra render height
+# turns into empty space on both sides of the text. (At 64px tall this was
+# ~37px of blank space per side on a 32px panel.) The font size is what sets
+# how big the text looks relative to the row; keep it at ~56% of the height.
+_RENDER_HEIGHT = 32
+_FONT_DESCRIPTION = "Sans Bold 18"
 DEFAULT_TEXT_COLOR_RGBA = (1, 1, 1, 1)  # white, matches this desktop's dark top bar
 
 
