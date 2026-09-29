@@ -14,7 +14,13 @@ so a short wide image (e.g. "118 →") renders fine, similar to how
 built-in indicators like the keyboard layout switcher show short text.
 The catch is that the icon's horizontal slot is the bitmap's native width,
 so the bitmap has to be rendered at about panel height (see _RENDER_HEIGHT).
+
+To draw attention to an out-of-range reading without any sound or popup,
+`filled` draws the text on a solid rounded "pill" of the range color -
+much easier to catch in peripheral vision than colored text alone.
 """
+
+import math
 
 import cairo
 import gi
@@ -32,15 +38,26 @@ from gi.repository import Pango, PangoCairo  # noqa: E402 (must follow gi.requir
 # how big the text looks relative to the row; keep it at ~56% of the height.
 _RENDER_HEIGHT = 32
 _FONT_DESCRIPTION = "Sans Bold 18"
+_PILL_CORNER_RADIUS = 6
 DEFAULT_TEXT_COLOR_RGBA = (1, 1, 1, 1)  # white, matches this desktop's dark top bar
+_DARK_TEXT_COLOR_RGBA = (0.1, 0.1, 0.1, 1)
+
+Rgba = tuple[float, float, float, float]
 
 
 def render_text_icon(
-    text: str, color: tuple[float, float, float, float] = DEFAULT_TEXT_COLOR_RGBA
+    text: str,
+    color: Rgba = DEFAULT_TEXT_COLOR_RGBA,
+    *,
+    filled: bool = False,
 ) -> cairo.ImageSurface:
-    """Draw `text` centered on a transparent background in `color`, sized
-    to fit it with a small margin. Returns a Cairo surface ready to be
-    written to PNG."""
+    """Draw `text` centered in `color`, sized to fit it with a small margin.
+    Returns a Cairo surface ready to be written to PNG.
+
+    With `filled`, `color` becomes a rounded background filling the whole
+    image and the text is drawn on top of it in black or white, whichever
+    contrasts better (see `contrasting_text_color`).
+    """
     layout = _build_layout(text)
     _ink, logical = layout.get_pixel_extents()
     margin = _RENDER_HEIGHT // 8
@@ -49,7 +66,13 @@ def render_text_icon(
 
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
     ctx = cairo.Context(surface)
-    ctx.set_source_rgba(*color)
+    if filled:
+        ctx.set_source_rgba(*color)
+        _rounded_rectangle(ctx, width, height, _PILL_CORNER_RADIUS)
+        ctx.fill()
+        ctx.set_source_rgba(*contrasting_text_color(color))
+    else:
+        ctx.set_source_rgba(*color)
     ctx.move_to((width - logical.width) / 2 - logical.x, (height - logical.height) / 2 - logical.y)
     PangoCairo.update_layout(ctx, layout)
     PangoCairo.show_layout(ctx, layout)
@@ -57,19 +80,22 @@ def render_text_icon(
 
 
 def render_text_icon_png_bytes(
-    text: str, color: tuple[float, float, float, float] = DEFAULT_TEXT_COLOR_RGBA
+    text: str,
+    color: Rgba = DEFAULT_TEXT_COLOR_RGBA,
+    *,
+    filled: bool = False,
 ) -> bytes:
     """Same as `render_text_icon`, but returns encoded PNG bytes - handy for
     tests, which don't need a real file on disk."""
     import io
 
-    surface = render_text_icon(text, color)
+    surface = render_text_icon(text, color, filled=filled)
     buf = io.BytesIO()
     surface.write_to_png(buf)
     return buf.getvalue()
 
 
-def parse_hex_color(hex_color: str) -> tuple[float, float, float, float]:
+def parse_hex_color(hex_color: str) -> Rgba:
     """Parse a '#rrggbb' string (as stored in settings.toml) into an RGBA
     float tuple for Cairo. Alpha is always fully opaque."""
     hex_color = hex_color.lstrip("#")
@@ -77,6 +103,31 @@ def parse_hex_color(hex_color: str) -> tuple[float, float, float, float]:
     g = int(hex_color[2:4], 16) / 255
     b = int(hex_color[4:6], 16) / 255
     return (r, g, b, 1.0)
+
+
+def contrasting_text_color(background: Rgba) -> Rgba:
+    """Near-black or white, whichever reads better on `background`, so a
+    user-chosen range color never leaves the text unreadable. Uses the WCAG relative-luminance formula; 0.179 is where black and white
+    text have equal contrast against the background."""
+    r, g, b, _a = background
+    luminance = 0.2126 * _linearize(r) + 0.7152 * _linearize(g) + 0.0722 * _linearize(b)
+    return _DARK_TEXT_COLOR_RGBA if luminance > 0.179 else DEFAULT_TEXT_COLOR_RGBA
+
+
+def _linearize(channel: float) -> float:
+    """Undo sRGB gamma for one 0..1 color channel (part of the WCAG formula)."""
+    return channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+
+
+def _rounded_rectangle(ctx: cairo.Context, width: float, height: float, radius: float) -> None:
+    """Add a rounded rectangle covering the whole (width x height) surface
+    to `ctx`'s current path."""
+    ctx.new_sub_path()
+    ctx.arc(width - radius, radius, radius, -math.pi / 2, 0)
+    ctx.arc(width - radius, height - radius, radius, 0, math.pi / 2)
+    ctx.arc(radius, height - radius, radius, math.pi / 2, math.pi)
+    ctx.arc(radius, radius, radius, math.pi, 3 * math.pi / 2)
+    ctx.close_path()
 
 
 def _build_layout(text: str) -> Pango.Layout:

@@ -144,6 +144,10 @@ You won't need to repeat this - the credentials are remembered, and (see
 below) the app is set to start automatically at every login by default.
 
 Right-click the tray icon for:
+- **Stop blinking (middle-click)** - only shown while the icon is
+  blinking, which it does when your reading leaves the configured range.
+  Middle-clicking the icon does the same without opening the menu. It
+  also stops by itself once the reading is back in range.
 - **Start at login** - checkbox, on by default (see "Running automatically
   at login" below).
 - **Restart** - reloads the app, e.g. after editing `config.toml`.
@@ -201,8 +205,14 @@ high_threshold_mgdl = 180   # above this, the icon turns yellow (green in betwee
 color_low = "#ED4343"
 color_normal = "#4DCC66"
 color_high = "#F5D334"
+highlight_pulse = true         # blink after leaving the range, until acknowledged (see above)
+range_hysteresis_mgdl = 5      # must come this far back inside a threshold to count as in range
 autostart_enabled = true   # start automatically at login (see below)
 ```
+
+The out-of-range highlight is purely visual - no sound, no popups - and
+is meant as a glanceable cue, not an alarm. `range_hysteresis_mgdl`
+stops it flickering on and off while a value hovers right at a threshold.
 
 Edit the file and restart `glucoglance` for changes to take effect.
 
