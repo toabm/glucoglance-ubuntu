@@ -15,14 +15,36 @@ GObject-introspection typelib or its community-maintained fork,
 `AyatanaAppIndicator3` (the one present on Ubuntu 24.04, this project's
 target). We try Ayatana first and fall back to the classic name so this
 runs on either.
+
+When a reading crosses out of range the icon also tries to catch the eye,
+without sound or popups: it blinks (alternating a filled background with
+the plain colored text) until the user acknowledges it - with the "Stop
+blinking" menu item, which only appears while blinking, or by
+middle-clicking the icon - or the reading comes back in range. Once
+acknowledged it goes back to the plain colored text; the range color
+alone is enough from then on. See `domain.range_tracker` for the
+crossing/hysteresis logic.
+
+When a poll produces no reading, no number is shown at all: the icon
+becomes the app's own eye/gauge/drop mark with a red eye
+(`assets/tray-icon-error.svg`), and a greyed line at the top of the menu
+says why ("No data: can't reach LibreLinkUp", etc.). Before the first
+reading arrives, the icon is the same mark in its normal colors.
+
+Merely opening the menu deliberately does *not* stop the blinking, so
+the "Stop blinking" item is still there to click. Hovering can't be
+used either way: the Shell handles hover internally and never tells the
+app.
 """
 
 import os
 import shutil
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
+import cairo
 import gi
 
 gi.require_version("Gtk", "3.0")
@@ -39,17 +61,50 @@ from gi.repository import GLib, Gtk
 from glucoglance.config.autostart import set_autostart_enabled
 from glucoglance.config.credentials import delete_password
 from glucoglance.config.settings import Settings, save_settings
-from glucoglance.domain.range import GlucoseRange, classify_mgdl
+from glucoglance.domain.range import GlucoseRange
+from glucoglance.domain.range_tracker import RangeState, RangeTracker
 from glucoglance.domain.reading import GlucoseReading
 from glucoglance.domain.units import GlucoseUnit
 from glucoglance.ui.about_dialog import show_about
+from glucoglance.ui.app_icon import tray_icon_path
+from glucoglance.ui.display import NoDataReason
 from glucoglance.ui.icon_renderer import (
     DEFAULT_TEXT_COLOR_RGBA,
+    Rgba,
     parse_hex_color,
+    render_image_icon,
     render_text_icon,
 )
 
 _APP_ID = "glucoglance"
+_PULSE_INTERVAL_MS = 500
+# Drawn instead of the app's mark if its icon file can't be loaded.
+_NO_DATA_FALLBACK_TEXT = "--"
+# Sizes the icon shown before the first reading arrives; see _no_data_icon_spec.
+_TYPICAL_READING_TEXT = "000 →"
+_WAITING_DESCRIPTION = "GlucoGlance: waiting for the first reading"
+# The menu's reason line during an error (also the icon's accessible text).
+_NO_DATA_DESCRIPTIONS = {
+    NoDataReason.NETWORK: "No data: can't reach LibreLinkUp",
+    NoDataReason.STALE_DATA: "No data: no recent sensor reading",
+    NoDataReason.AUTH: "No data: login needed",
+    NoDataReason.OTHER: "No data: unexpected error",
+}
+
+
+@dataclass(frozen=True)
+class _IconSpec:
+    """Everything needed to render one tray icon frame. With `image_path`
+    set, that image is drawn instead of `text` (which stays the fallback
+    if it can't be loaded)."""
+
+    text: str
+    color: Rgba
+    filled: bool = False
+    min_width: int = 0
+    image_path: Path | None = None
+    # Accessible description; defaults to `text`.
+    description: str | None = None
 
 
 class TrayDisplay:
@@ -60,9 +115,13 @@ class TrayDisplay:
 
         # Range thresholds and colors come from settings (config.toml) so
         # they're user-tunable without a code change; see classify_mgdl's
-        # docstring for why the thresholds are always in mg/dL.
-        self._low_threshold = settings.low_threshold_mgdl
-        self._high_threshold = settings.high_threshold_mgdl
+        # docstring for why the thresholds are always in mg/dL. The tracker
+        # is only ever touched from the poller thread (in show_reading).
+        self._range_tracker = RangeTracker(
+            low_threshold=settings.low_threshold_mgdl,
+            high_threshold=settings.high_threshold_mgdl,
+            hysteresis_mgdl=settings.range_hysteresis_mgdl,
+        )
         self._range_colors = {
             GlucoseRange.LOW: parse_hex_color(settings.color_low),
             GlucoseRange.NORMAL: parse_hex_color(settings.color_normal),
@@ -80,9 +139,22 @@ class TrayDisplay:
         # the file's content changes - so a fixed/alternating set of names
         # just replays stale cached bitmaps. Every update instead gets a
         # brand-new, never-before-seen filename to guarantee a fresh read;
-        # _write_icon() deletes the previous file right after.
+        # _write_icon() deletes older files right after. This applies to
+        # the pulse too: confirmed live, switching back to an already-seen
+        # name isn't redrawn at all, so every pulse frame is a new file.
         self._update_counter = 0
         self._recent_icon_names: list[str] = []
+        # Width of the last icon written; "no data" icons are padded to it
+        # (see _no_data_icon_spec).
+        self._last_icon_width = render_text_icon(_TYPICAL_READING_TEXT).get_width()
+        # Pulse state, only touched on the GTK main loop: whether a crossing
+        # is still waiting to be acknowledged, the running GLib timer, the
+        # two frames to alternate between (plain, filled) and which one is
+        # showing.
+        self._pulse_pending = False
+        self._pulse_timer_id: int | None = None
+        self._pulse_frames: tuple[_IconSpec, _IconSpec] | None = None
+        self._pulse_frame_index = 0
         # Set once shutdown() is called, even if it happens before run()
         # starts the main loop (see shutdown()'s docstring for why that can
         # happen) - lets run() skip entering the loop at all in that case.
@@ -90,24 +162,44 @@ class TrayDisplay:
 
         self._indicator = AppIndicator3.Indicator.new(
             _APP_ID,
-            self._write_icon("--", DEFAULT_TEXT_COLOR_RGBA),
+            self._write_icon(self._no_data_icon_spec(None)),
             AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
         )
         self._indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
         self._indicator.set_icon_theme_path(str(self._icon_dir))
         self._indicator.set_menu(self._build_menu())
+        # Middle-clicking the icon "activates" this item directly, without
+        # opening the menu - the one click the Shell forwards to the app
+        # instead of handling itself.
+        self._indicator.set_secondary_activate_target(self._stop_blinking_item)
 
     def _build_menu(self) -> Gtk.Menu:
         """Build the indicator's right-click menu: "GlucoGlance" (doubles as
-        an About trigger), a "start at login" checkbox, Restart (to pick up
-        a config.toml edit without a terminal), Log out, and Quit."""
+        an About trigger), "Stop blinking" (only shown while blinking), a
+        "start at login" checkbox, Restart (to pick up a config.toml edit
+        without a terminal), Log out, and Quit."""
         menu = Gtk.Menu()
 
         about_item = Gtk.MenuItem(label="GlucoGlance")
         about_item.connect("activate", lambda *_args: show_about())
         menu.append(about_item)
 
+        # Why there's no reading; only shown during an error, greyed out
+        # since it's information, not an action (see _sync_no_data_item).
+        self._no_data_item = Gtk.MenuItem(label="")
+        self._no_data_item.set_sensitive(False)
+        menu.append(self._no_data_item)
+
         menu.append(Gtk.SeparatorMenuItem())
+
+        # Also the middle-click target (see __init__), which the label
+        # mentions since there's no other way to discover that shortcut.
+        # Shown/hidden together with its separator by _sync_stop_blinking_item().
+        self._stop_blinking_item = Gtk.MenuItem(label="Stop blinking (middle-click)")
+        self._stop_blinking_item.connect("activate", lambda *_args: self._acknowledge_highlight())
+        menu.append(self._stop_blinking_item)
+        self._stop_blinking_separator = Gtk.SeparatorMenuItem()
+        menu.append(self._stop_blinking_separator)
 
         autostart_item = Gtk.CheckMenuItem(label="Start at login")
         autostart_item.set_active(self._settings.autostart_enabled)
@@ -129,6 +221,8 @@ class TrayDisplay:
         menu.append(quit_item)
 
         menu.show_all()
+        self._sync_stop_blinking_item()
+        self._sync_no_data_item(None)
         return menu
 
     def _on_autostart_toggled(self, item: Gtk.CheckMenuItem) -> None:
@@ -159,23 +253,22 @@ class TrayDisplay:
 
     def show_reading(self, reading: GlucoseReading, unit: GlucoseUnit) -> None:
         """Update the tray icon with a newly-fetched reading, colored by
-        clinical range (red low / green normal / yellow high).
+        clinical range (red low / green normal / yellow high), plus the
+        out-of-range highlight described in this module's docstring.
 
         Called from the poller's background thread, so the actual widget
         mutation is scheduled onto the GTK main loop via `GLib.idle_add`
         rather than done directly here.
         """
-        text = self._format_reading(reading, unit)
-        glucose_range = classify_mgdl(
-            reading.value_mgdl,
-            low_threshold=self._low_threshold,
-            high_threshold=self._high_threshold,
-        )
-        GLib.idle_add(self._apply_icon, text, self._range_colors[glucose_range])
+        state = self._range_tracker.update(reading)
+        GLib.idle_add(self._apply_reading, self._format_reading(reading, unit), state)
 
-    def show_error(self, message: str) -> None:
-        """Show that the latest poll failed. Same threading caveat as show_reading."""
-        GLib.idle_add(self._apply_icon, "--", DEFAULT_TEXT_COLOR_RGBA)
+    def show_error(self, reason: NoDataReason, message: str) -> None:
+        """Show that the latest poll produced no reading: the red-eye icon,
+        plus `reason` in the menu. Same threading caveat as show_reading.
+        Deliberately no number and no blinking - we don't know the current
+        value, so nothing about the icon should suggest one."""
+        GLib.idle_add(self._apply_error, reason)
 
     def run(self) -> None:
         """Block on the GTK main loop until `shutdown()` is called.
@@ -201,21 +294,132 @@ class TrayDisplay:
             Gtk.main_quit()
         shutil.rmtree(self._icon_dir, ignore_errors=True)
 
-    def _apply_icon(self, text: str, color: tuple[float, float, float, float]) -> bool:
-        """GLib.idle_add callback: render `text` in `color` and set it as
-        the indicator's icon. Returning False tells GLib not to call this
+    def _apply_reading(self, text: str, state: RangeState) -> bool:
+        """GLib.idle_add callback: show a reading's icon in its range color,
+        blinking if it's out of range and the crossing hasn't been
+        acknowledged yet. Returning False tells GLib not to call this
         again."""
         if self._quit_requested:
             return False
-        icon_name = self._write_icon(text, color)
-        self._indicator.set_icon_full(icon_name, text)
+        self._stop_pulse_timer()
+
+        color = self._range_colors[state.glucose_range]
+        if not state.is_out_of_range:
+            self._pulse_pending = False
+        elif state.just_crossed and self._settings.highlight_pulse:
+            self._pulse_pending = True
+
+        plain = _IconSpec(text, color)
+        if self._pulse_pending:
+            # A new reading mid-blink re-renders both frames with the new value.
+            self._start_pulse(plain, _IconSpec(text, color, filled=True))
+        else:
+            self._show_icon(plain)
+        self._sync_stop_blinking_item()
+        self._sync_no_data_item(None)
         return False
 
-    def _write_icon(self, text: str, color: tuple[float, float, float, float]) -> str:
-        """Render `text` in `color` to a PNG under a brand-new filename in
-        our icon theme directory, delete the previous update's file, and
-        return the new icon name (filename without extension) to pass to
-        AppIndicator.
+    def _apply_error(self, reason: NoDataReason) -> bool:
+        """GLib.idle_add callback: show the red-eye "no data" icon and the
+        reason in the menu. An unacknowledged crossing stays pending, so
+        blinking resumes if the next successful reading is still out of
+        range."""
+        if self._quit_requested:
+            return False
+        self._stop_pulse_timer()
+        self._show_icon(self._no_data_icon_spec(reason))
+        self._sync_stop_blinking_item()
+        self._sync_no_data_item(reason)
+        return False
+
+    def _acknowledge_highlight(self) -> None:
+        """Stop blinking until the next crossing, settling on the plain
+        colored text. Called from the "Stop blinking" item (directly or via
+        middle-click), on the main loop."""
+        self._pulse_pending = False
+        if self._pulse_timer_id is not None:
+            self._stop_pulse_timer()
+            if self._pulse_frame_index != 0 and self._pulse_frames is not None:
+                self._show_icon(self._pulse_frames[0])
+        self._sync_stop_blinking_item()
+
+    def _sync_stop_blinking_item(self) -> None:
+        """Show "Stop blinking" (and its separator) only while the icon is
+        actually blinking - not e.g. while a poll error shows "no data",
+        even if blinking will resume after it."""
+        blinking = self._pulse_timer_id is not None
+        self._stop_blinking_item.set_visible(blinking)
+        self._stop_blinking_separator.set_visible(blinking)
+
+    def _sync_no_data_item(self, reason: NoDataReason | None) -> None:
+        """Show the menu's reason line for `reason`, or hide it (None)."""
+        if reason is not None:
+            self._no_data_item.set_label(_NO_DATA_DESCRIPTIONS[reason])
+        self._no_data_item.set_visible(reason is not None)
+
+    def _no_data_icon_spec(self, reason: NoDataReason | None) -> _IconSpec:
+        """The app's own mark, for when there's no reading to show: the
+        red-eye variant for an error (`reason`), or the normal one before
+        the first reading (None). Padded to the width of the icon it
+        replaces.
+
+        Why the padding matters - seen live with the earlier "--" icon
+        (GNOME Shell 46 + ubuntu-appindicators): switching from a reading
+        (e.g. 61x32) to a bare, narrow "--" (24x32) could leave the
+        previous image drawn underneath - a stale "74" with "--" over it,
+        i.e. showing a reading we no longer have - and the reverse switch
+        left "--" under the next reading. With "--" padded to the same
+        width, repeated error/recovery cycles (including mid-blink) came out
+        clean. The likely cause is the extension changing how it sizes the
+        icon's slot below a 1.5:1 aspect ratio; either way, never letting
+        the width jump avoids it (and stops neighboring tray icons shifting
+        sideways on errors). The mark is just as narrow, so the same padding
+        applies to it.
+        """
+        return _IconSpec(
+            _NO_DATA_FALLBACK_TEXT,
+            DEFAULT_TEXT_COLOR_RGBA,
+            min_width=self._last_icon_width,
+            image_path=tray_icon_path(error=reason is not None),
+            description=_WAITING_DESCRIPTION if reason is None else _NO_DATA_DESCRIPTIONS[reason],
+        )
+
+    def _show_icon(self, spec: _IconSpec) -> None:
+        """Render `spec` under a fresh filename and make it the indicator's icon."""
+        self._indicator.set_icon_full(self._write_icon(spec), spec.description or spec.text)
+
+    def _start_pulse(self, plain: _IconSpec, filled: _IconSpec) -> None:
+        """Show `filled` and start alternating it with `plain` every
+        _PULSE_INTERVAL_MS, until `_stop_pulse_timer()` is called. Frame
+        index 0 is always the plain one, which is what acknowledging
+        settles on."""
+        self._pulse_frames = (plain, filled)
+        self._pulse_frame_index = 1
+        self._show_icon(filled)
+        self._pulse_timer_id = GLib.timeout_add(_PULSE_INTERVAL_MS, self._on_pulse_tick)
+
+    def _on_pulse_tick(self) -> bool:
+        """GLib timer callback: show the other pulse frame. Returns whether
+        GLib should keep calling it."""
+        assert self._pulse_frames is not None
+        if self._quit_requested:
+            self._pulse_timer_id = None
+            return False
+        self._pulse_frame_index = 1 - self._pulse_frame_index
+        self._show_icon(self._pulse_frames[self._pulse_frame_index])
+        return True
+
+    def _stop_pulse_timer(self) -> None:
+        """Cancel the pulse timer, if one is running. Leaves
+        `_pulse_pending` alone, so a later reading can resume blinking."""
+        if self._pulse_timer_id is not None:
+            GLib.source_remove(self._pulse_timer_id)
+            self._pulse_timer_id = None
+
+    def _write_icon(self, spec: _IconSpec) -> str:
+        """Render `spec` to a PNG under a brand-new filename in our icon
+        theme directory, delete older files, and return the new icon name
+        (filename without extension) to pass to AppIndicator.
 
         Recreates the directory if it's missing (defensive: it's only ever
         removed by `shutdown()`, but guarding here means a stray extra
@@ -225,7 +429,9 @@ class TrayDisplay:
 
         self._update_counter += 1
         icon_name = f"reading-{self._update_counter}"
-        render_text_icon(text, color).write_to_png(str(self._icon_dir / f"{icon_name}.png"))
+        surface = self._render(spec)
+        surface.write_to_png(str(self._icon_dir / f"{icon_name}.png"))
+        self._last_icon_width = surface.get_width()
 
         # Keep the current file and one prior (in case the Shell hasn't
         # finished reading the previous one yet) and delete anything older.
@@ -234,6 +440,17 @@ class TrayDisplay:
             (self._icon_dir / f"{self._recent_icon_names.pop(0)}.png").unlink(missing_ok=True)
 
         return icon_name
+
+    @staticmethod
+    def _render(spec: _IconSpec) -> cairo.ImageSurface:
+        """Draw `spec`: its image if it has one, falling back to its text
+        if that file can't be loaded."""
+        if spec.image_path is not None:
+            try:
+                return render_image_icon(spec.image_path, min_width=spec.min_width)
+            except GLib.Error:
+                pass
+        return render_text_icon(spec.text, spec.color, filled=spec.filled, min_width=spec.min_width)
 
     @staticmethod
     def _format_reading(reading: GlucoseReading, unit: GlucoseUnit) -> str:
