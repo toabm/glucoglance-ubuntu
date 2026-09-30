@@ -13,7 +13,9 @@ to the value file (its path is printed at startup):
     echo 74 > "$XDG_RUNTIME_DIR/glucoglance-fake-reading"     # low
     echo "200 4" > "$XDG_RUNTIME_DIR/glucoglance-fake-reading"  # high, rising
     echo 120 > "$XDG_RUNTIME_DIR/glucoglance-fake-reading"    # back in range
-    echo error > "$XDG_RUNTIME_DIR/glucoglance-fake-reading"  # a failed poll
+    echo error > "$XDG_RUNTIME_DIR/glucoglance-fake-reading"  # network failure
+    echo stale > "$XDG_RUNTIME_DIR/glucoglance-fake-reading"  # no recent reading
+    echo auth > "$XDG_RUNTIME_DIR/glucoglance-fake-reading"   # login rejected
 
 The optional second number is the trend, as the API encodes it (1-5,
 1 = rapidly falling, 3 = stable, 5 = rapidly rising). Values are always
@@ -21,7 +23,8 @@ in mg/dL, like the API, whatever display unit config.toml selects.
 
 This is a test harness, so it's careful not to change anything real: no
 LibreLinkUp login or network access, no keyring access (so no credential
-prompt, and the tray's "Log out" does nothing), no writes to config.toml
+prompt - not even for a simulated "auth" failure - and the tray's "Log
+out" does nothing), no writes to config.toml
 (your saved settings are still read, e.g. thresholds, colors and unit),
 and no changes to the autostart entry. The tray's "Restart" re-runs this
 script rather than the real app. The icon can appear alongside a running
@@ -37,7 +40,7 @@ from pathlib import Path
 
 import glucoglance.main as app_main
 import glucoglance.ui.tray as tray
-from glucoglance.client.errors import NetworkError
+from glucoglance.client.errors import AuthError, NetworkError, StaleDataError
 from glucoglance.domain.range import DEFAULT_HIGH_THRESHOLD_MGDL, DEFAULT_LOW_THRESHOLD_MGDL
 from glucoglance.domain.reading import GlucoseReading
 from glucoglance.domain.trend import TrendArrow
@@ -61,11 +64,17 @@ class FakeReadingClient:
 
     def get_latest_reading(self) -> GlucoseReading:
         """Build a reading from the value file's "<mg/dL> [trend]" contents,
-        or raise NetworkError for "error" or anything unparseable - which
-        exercises the same error path as a real failed poll."""
+        or raise the matching client error for "error" (network), "stale" or
+        "auth" - the same error path as a real failed poll. Anything
+        unparseable counts as a network error."""
         raw = self._value_file.read_text().split()
-        if not raw or raw[0].lower() == "error":
-            raise NetworkError("simulated poll failure (value file says 'error')")
+        keyword = raw[0].lower() if raw else "error"
+        if keyword == "error":
+            raise NetworkError("simulated network failure (value file says 'error')")
+        if keyword == "stale":
+            raise StaleDataError("simulated stale data (value file says 'stale')")
+        if keyword == "auth":
+            raise AuthError("simulated login failure (value file says 'auth')")
         try:
             value = int(raw[0])
             trend = TrendArrow.from_api_value(raw[1]) if len(raw) > 1 else TrendArrow.STABLE
@@ -119,9 +128,16 @@ def _install_test_doubles(value_file: Path, interval_seconds: int) -> None:
     def log_out_disabled(_display: tray.TrayDisplay) -> None:
         logger.info("'Log out' is disabled under the fake-reading harness")
 
+    def reauthenticate_disabled(_application: app_main.Application) -> bool:
+        # The real app stops polling and prompts for credentials on an
+        # AuthError; here we just keep polling the value file.
+        logger.info("Simulated AuthError: skipping the credential prompt")
+        return False
+
     app_main.load_settings = load_settings_for_test
     app_main.save_settings = lambda settings: None
     app_main.Application._ensure_client = ensure_fake_client
+    app_main.Application._reauthenticate = reauthenticate_disabled
     tray.save_settings = lambda settings: None
     tray.set_autostart_enabled = lambda enabled: None
     tray.TrayDisplay._restart = restart_this_script

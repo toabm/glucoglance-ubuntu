@@ -4,9 +4,14 @@ Cairo/Pango rendering to an in-memory surface needs no display server, so
 this is safe to unit-test unlike the actual tray/GTK integration.
 """
 
+import cairo
+import pytest
+from gi.repository import GLib
+
 from glucoglance.ui.icon_renderer import (
     contrasting_text_color,
     parse_hex_color,
+    render_image_icon,
     render_text_icon,
     render_text_icon_png_bytes,
 )
@@ -72,3 +77,31 @@ def test_min_width_pads_narrow_text_but_never_shrinks():
     assert narrow.get_width() < 61
     assert padded.get_width() == 61
     assert wide.get_width() == render_text_icon("188 ↑").get_width()
+
+
+def _write_square_png(path, size=16):
+    """A fully opaque red square, standing in for an icon file."""
+    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, size, size)
+    ctx = cairo.Context(surface)
+    ctx.set_source_rgba(1, 0, 0, 1)
+    ctx.paint()
+    surface.write_to_png(str(path))
+
+
+def test_image_icon_is_scaled_centered_and_padded(tmp_path):
+    image = tmp_path / "icon.png"
+    _write_square_png(image)
+    surface = render_image_icon(image, min_width=61)
+    assert surface.get_width() == 61
+    assert surface.get_height() == render_text_icon("--").get_height()
+    stride = surface.get_stride()
+    data = surface.get_data()
+    center = (surface.get_height() // 2) * stride + (surface.get_width() // 2) * 4
+    # Cairo ARGB32 is native-endian BGRA on x86: drawn in its own (red) color.
+    assert tuple(data[center:center + 4]) == (0, 0, 255, 255)
+    assert _alpha_at(surface, 1, 1) == 0
+
+
+def test_image_icon_raises_for_a_missing_file(tmp_path):
+    with pytest.raises(GLib.Error):
+        render_image_icon(tmp_path / "missing.svg")

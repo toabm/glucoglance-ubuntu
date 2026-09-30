@@ -18,16 +18,23 @@ so the bitmap has to be rendered at about panel height (see _RENDER_HEIGHT).
 To draw attention to an out-of-range reading without any sound or popup,
 `filled` draws the text on a solid rounded "pill" of the range color -
 much easier to catch in peripheral vision than colored text alone.
+
+`render_image_icon` draws one of the app's own icon files (e.g. the red
+"no data" eye) instead of text, with the same height and width padding as
+the text icons, so the tray can swap between them freely.
 """
 
 import math
+from pathlib import Path
 
 import cairo
 import gi
 
+gi.require_version("Gdk", "3.0")
+gi.require_version("GdkPixbuf", "2.0")
 gi.require_version("Pango", "1.0")
 gi.require_version("PangoCairo", "1.0")
-from gi.repository import Pango, PangoCairo  # noqa: E402 (must follow gi.require_version)
+from gi.repository import Gdk, GdkPixbuf, Pango, PangoCairo  # noqa: E402 (must follow gi.require_version)
 
 # Rendered at (roughly) the panel's actual row height, not larger. For wide
 # images (width >= 1.5x height) the ubuntu-appindicators extension sizes the
@@ -39,6 +46,9 @@ from gi.repository import Pango, PangoCairo  # noqa: E402 (must follow gi.requir
 _RENDER_HEIGHT = 32
 _FONT_DESCRIPTION = "Sans Bold 18"
 _PILL_CORNER_RADIUS = 6
+# Image icons (the app's eye mark) are drawn at half the row height, the
+# same visual size as the Shell's own ~16px status icons next to them.
+IMAGE_ICON_HEIGHT = 16
 DEFAULT_TEXT_COLOR_RGBA = (1, 1, 1, 1)  # white, matches this desktop's dark top bar
 _DARK_TEXT_COLOR_RGBA = (0.1, 0.1, 0.1, 1)
 
@@ -98,6 +108,24 @@ def render_text_icon_png_bytes(
     buf = io.BytesIO()
     surface.write_to_png(buf)
     return buf.getvalue()
+
+
+def render_image_icon(image_path: Path, *, min_width: int = 0) -> cairo.ImageSurface:
+    """Draw the image at `image_path` (SVG or PNG, in its own colors) at
+    IMAGE_ICON_HEIGHT pixels tall, keeping its aspect ratio, centered in an
+    image as tall as the text icons and at least `min_width` wide.
+
+    Raises GLib.Error if the file can't be loaded as an image.
+    """
+    pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(image_path), -1, IMAGE_ICON_HEIGHT, True)
+    margin = _RENDER_HEIGHT // 8
+    width = max(pixbuf.get_width() + margin * 2, min_width)
+    height = _RENDER_HEIGHT
+    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+    ctx = cairo.Context(surface)
+    Gdk.cairo_set_source_pixbuf(ctx, pixbuf, (width - pixbuf.get_width()) // 2, (height - pixbuf.get_height()) // 2)
+    ctx.paint()
+    return surface
 
 
 def parse_hex_color(hex_color: str) -> Rgba:

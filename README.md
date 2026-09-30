@@ -138,12 +138,19 @@ Requirements above). Enter them and press OK. The email is saved to
 `~/.config/glucoglance/config.toml`; the password is stored in your
 system keyring (GNOME Keyring), never in plaintext. A number should then
 appear in your top bar within a few seconds - that's your current glucose
-reading.
+reading. Until then, the top bar shows GlucoGlance's own eye icon.
+
+If no current reading is available, no number is shown: the icon turns
+into the same eye with a red eye white, and the top of the right-click
+menu says why - LibreLinkUp can't be reached, the login needs renewing,
+or there's no recent reading from the sensor.
 
 You won't need to repeat this - the credentials are remembered, and (see
 below) the app is set to start automatically at every login by default.
 
 Right-click the tray icon for:
+- **GlucoGlance** - the About dialog (version, links, disclaimer). While
+  there's no current reading, a greyed line below it gives the reason.
 - **Stop blinking (middle-click)** - only shown while the icon is
   blinking, which it does when your reading leaves the configured range.
   Middle-clicking the icon does the same without opening the menu. It

@@ -25,6 +25,12 @@ acknowledged it goes back to the plain colored text; the range color
 alone is enough from then on. See `domain.range_tracker` for the
 crossing/hysteresis logic.
 
+When a poll produces no reading, no number is shown at all: the icon
+becomes the app's own eye/gauge/drop mark with a red eye
+(`assets/tray-icon-error.svg`), and a greyed line at the top of the menu
+says why ("No data: can't reach LibreLinkUp", etc.). Before the first
+reading arrives, the icon is the same mark in its normal colors.
+
 Merely opening the menu deliberately does *not* stop the blinking, so
 the "Stop blinking" item is still there to click. Hovering can't be
 used either way: the Shell handles hover internally and never tells the
@@ -38,6 +44,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+import cairo
 import gi
 
 gi.require_version("Gtk", "3.0")
@@ -59,28 +66,45 @@ from glucoglance.domain.range_tracker import RangeState, RangeTracker
 from glucoglance.domain.reading import GlucoseReading
 from glucoglance.domain.units import GlucoseUnit
 from glucoglance.ui.about_dialog import show_about
+from glucoglance.ui.app_icon import tray_icon_path
+from glucoglance.ui.display import NoDataReason
 from glucoglance.ui.icon_renderer import (
     DEFAULT_TEXT_COLOR_RGBA,
     Rgba,
     parse_hex_color,
+    render_image_icon,
     render_text_icon,
 )
 
 _APP_ID = "glucoglance"
 _PULSE_INTERVAL_MS = 500
-_ERROR_TEXT = "--"
-# Sizes the "--" icon shown before the first reading arrives; see _error_icon_spec.
+# Drawn instead of the app's mark if its icon file can't be loaded.
+_NO_DATA_FALLBACK_TEXT = "--"
+# Sizes the icon shown before the first reading arrives; see _no_data_icon_spec.
 _TYPICAL_READING_TEXT = "000 →"
+_WAITING_DESCRIPTION = "GlucoGlance: waiting for the first reading"
+# The menu's reason line during an error (also the icon's accessible text).
+_NO_DATA_DESCRIPTIONS = {
+    NoDataReason.NETWORK: "No data: can't reach LibreLinkUp",
+    NoDataReason.STALE_DATA: "No data: no recent sensor reading",
+    NoDataReason.AUTH: "No data: login needed",
+    NoDataReason.OTHER: "No data: unexpected error",
+}
 
 
 @dataclass(frozen=True)
 class _IconSpec:
-    """Everything needed to render one tray icon frame."""
+    """Everything needed to render one tray icon frame. With `image_path`
+    set, that image is drawn instead of `text` (which stays the fallback
+    if it can't be loaded)."""
 
     text: str
     color: Rgba
     filled: bool = False
     min_width: int = 0
+    image_path: Path | None = None
+    # Accessible description; defaults to `text`.
+    description: str | None = None
 
 
 class TrayDisplay:
@@ -120,8 +144,8 @@ class TrayDisplay:
         # name isn't redrawn at all, so every pulse frame is a new file.
         self._update_counter = 0
         self._recent_icon_names: list[str] = []
-        # Width of the last icon written; the "--" error icon is padded to
-        # it (see _error_icon_spec).
+        # Width of the last icon written; "no data" icons are padded to it
+        # (see _no_data_icon_spec).
         self._last_icon_width = render_text_icon(_TYPICAL_READING_TEXT).get_width()
         # Pulse state, only touched on the GTK main loop: whether a crossing
         # is still waiting to be acknowledged, the running GLib timer, the
@@ -138,7 +162,7 @@ class TrayDisplay:
 
         self._indicator = AppIndicator3.Indicator.new(
             _APP_ID,
-            self._write_icon(self._error_icon_spec()),
+            self._write_icon(self._no_data_icon_spec(None)),
             AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
         )
         self._indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
@@ -159,6 +183,12 @@ class TrayDisplay:
         about_item = Gtk.MenuItem(label="GlucoGlance")
         about_item.connect("activate", lambda *_args: show_about())
         menu.append(about_item)
+
+        # Why there's no reading; only shown during an error, greyed out
+        # since it's information, not an action (see _sync_no_data_item).
+        self._no_data_item = Gtk.MenuItem(label="")
+        self._no_data_item.set_sensitive(False)
+        menu.append(self._no_data_item)
 
         menu.append(Gtk.SeparatorMenuItem())
 
@@ -192,6 +222,7 @@ class TrayDisplay:
 
         menu.show_all()
         self._sync_stop_blinking_item()
+        self._sync_no_data_item(None)
         return menu
 
     def _on_autostart_toggled(self, item: Gtk.CheckMenuItem) -> None:
@@ -232,12 +263,12 @@ class TrayDisplay:
         state = self._range_tracker.update(reading)
         GLib.idle_add(self._apply_reading, self._format_reading(reading, unit), state)
 
-    def show_error(self, message: str) -> None:
-        """Show that the latest poll failed. Same threading caveat as
-        show_reading. Deliberately plain: no fill, no pulse -
-        an error means we don't know the current value, so nothing about
-        the icon should suggest one."""
-        GLib.idle_add(self._apply_error)
+    def show_error(self, reason: NoDataReason, message: str) -> None:
+        """Show that the latest poll produced no reading: the red-eye icon,
+        plus `reason` in the menu. Same threading caveat as show_reading.
+        Deliberately no number and no blinking - we don't know the current
+        value, so nothing about the icon should suggest one."""
+        GLib.idle_add(self._apply_error, reason)
 
     def run(self) -> None:
         """Block on the GTK main loop until `shutdown()` is called.
@@ -285,17 +316,20 @@ class TrayDisplay:
         else:
             self._show_icon(plain)
         self._sync_stop_blinking_item()
+        self._sync_no_data_item(None)
         return False
 
-    def _apply_error(self) -> bool:
-        """GLib.idle_add callback: show the plain "--" error icon. An
-        unacknowledged crossing stays pending, so blinking resumes if the
-        next successful reading is still out of range."""
+    def _apply_error(self, reason: NoDataReason) -> bool:
+        """GLib.idle_add callback: show the red-eye "no data" icon and the
+        reason in the menu. An unacknowledged crossing stays pending, so
+        blinking resumes if the next successful reading is still out of
+        range."""
         if self._quit_requested:
             return False
         self._stop_pulse_timer()
-        self._show_icon(self._error_icon_spec())
+        self._show_icon(self._no_data_icon_spec(reason))
         self._sync_stop_blinking_item()
+        self._sync_no_data_item(reason)
         return False
 
     def _acknowledge_highlight(self) -> None:
@@ -311,17 +345,27 @@ class TrayDisplay:
 
     def _sync_stop_blinking_item(self) -> None:
         """Show "Stop blinking" (and its separator) only while the icon is
-        actually blinking - not e.g. while a poll error shows "--", even if
-        blinking will resume after it."""
+        actually blinking - not e.g. while a poll error shows "no data",
+        even if blinking will resume after it."""
         blinking = self._pulse_timer_id is not None
         self._stop_blinking_item.set_visible(blinking)
         self._stop_blinking_separator.set_visible(blinking)
 
-    def _error_icon_spec(self) -> _IconSpec:
-        """The "--" icon, padded to the width of the icon it replaces.
+    def _sync_no_data_item(self, reason: NoDataReason | None) -> None:
+        """Show the menu's reason line for `reason`, or hide it (None)."""
+        if reason is not None:
+            self._no_data_item.set_label(_NO_DATA_DESCRIPTIONS[reason])
+        self._no_data_item.set_visible(reason is not None)
 
-        Seen live (GNOME Shell 46 + ubuntu-appindicators): switching from a
-        reading (e.g. 61x32) to a bare, narrow "--" (24x32) could leave the
+    def _no_data_icon_spec(self, reason: NoDataReason | None) -> _IconSpec:
+        """The app's own mark, for when there's no reading to show: the
+        red-eye variant for an error (`reason`), or the normal one before
+        the first reading (None). Padded to the width of the icon it
+        replaces.
+
+        Why the padding matters - seen live with the earlier "--" icon
+        (GNOME Shell 46 + ubuntu-appindicators): switching from a reading
+        (e.g. 61x32) to a bare, narrow "--" (24x32) could leave the
         previous image drawn underneath - a stale "74" with "--" over it,
         i.e. showing a reading we no longer have - and the reverse switch
         left "--" under the next reading. With "--" padded to the same
@@ -329,13 +373,20 @@ class TrayDisplay:
         clean. The likely cause is the extension changing how it sizes the
         icon's slot below a 1.5:1 aspect ratio; either way, never letting
         the width jump avoids it (and stops neighboring tray icons shifting
-        sideways on errors).
+        sideways on errors). The mark is just as narrow, so the same padding
+        applies to it.
         """
-        return _IconSpec(_ERROR_TEXT, DEFAULT_TEXT_COLOR_RGBA, min_width=self._last_icon_width)
+        return _IconSpec(
+            _NO_DATA_FALLBACK_TEXT,
+            DEFAULT_TEXT_COLOR_RGBA,
+            min_width=self._last_icon_width,
+            image_path=tray_icon_path(error=reason is not None),
+            description=_WAITING_DESCRIPTION if reason is None else _NO_DATA_DESCRIPTIONS[reason],
+        )
 
     def _show_icon(self, spec: _IconSpec) -> None:
         """Render `spec` under a fresh filename and make it the indicator's icon."""
-        self._indicator.set_icon_full(self._write_icon(spec), spec.text)
+        self._indicator.set_icon_full(self._write_icon(spec), spec.description or spec.text)
 
     def _start_pulse(self, plain: _IconSpec, filled: _IconSpec) -> None:
         """Show `filled` and start alternating it with `plain` every
@@ -378,7 +429,7 @@ class TrayDisplay:
 
         self._update_counter += 1
         icon_name = f"reading-{self._update_counter}"
-        surface = render_text_icon(spec.text, spec.color, filled=spec.filled, min_width=spec.min_width)
+        surface = self._render(spec)
         surface.write_to_png(str(self._icon_dir / f"{icon_name}.png"))
         self._last_icon_width = surface.get_width()
 
@@ -389,6 +440,17 @@ class TrayDisplay:
             (self._icon_dir / f"{self._recent_icon_names.pop(0)}.png").unlink(missing_ok=True)
 
         return icon_name
+
+    @staticmethod
+    def _render(spec: _IconSpec) -> cairo.ImageSurface:
+        """Draw `spec`: its image if it has one, falling back to its text
+        if that file can't be loaded."""
+        if spec.image_path is not None:
+            try:
+                return render_image_icon(spec.image_path, min_width=spec.min_width)
+            except GLib.Error:
+                pass
+        return render_text_icon(spec.text, spec.color, filled=spec.filled, min_width=spec.min_width)
 
     @staticmethod
     def _format_reading(reading: GlucoseReading, unit: GlucoseUnit) -> str:

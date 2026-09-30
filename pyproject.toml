@@ -56,7 +56,7 @@ ide = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-glucoglance = ["assets/*.png"]
+glucoglance = ["assets/*.png", "assets/*.svg"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

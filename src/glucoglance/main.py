@@ -27,6 +27,7 @@ from glucoglance.config.settings import Settings, load_settings, save_settings
 from glucoglance.poller.poller import EventBus, GlucosePoller, PollErrorEvent, ReadingUpdatedEvent
 from glucoglance.ui.app_icon import app_icon_path
 from glucoglance.ui.credential_prompt import prompt_for_credentials, show_message
+from glucoglance.ui.display import NoDataReason
 from glucoglance.ui.tray import TrayDisplay
 
 logger = logging.getLogger(__name__)
@@ -139,7 +140,7 @@ class Application:
             logger.warning(
                 "Poll failed (%d consecutive): %s", event.consecutive_failures, event.error
             )
-            self.display.show_error(str(event.error))
+            self.display.show_error(_no_data_reason(event.error), str(event.error))
             if isinstance(event.error, AuthError):
                 # Marshal onto the main loop since this rebuilds the poller.
                 GLib.idle_add(self._reauthenticate)
@@ -188,6 +189,17 @@ class Application:
     def _on_terminate_signal(self) -> bool:
         self.display.shutdown()
         return False
+
+
+def _no_data_reason(error: Exception) -> NoDataReason:
+    """Translate a poll failure into the display-level reason for it."""
+    if isinstance(error, NetworkError):
+        return NoDataReason.NETWORK
+    if isinstance(error, StaleDataError):
+        return NoDataReason.STALE_DATA
+    if isinstance(error, AuthError):
+        return NoDataReason.AUTH
+    return NoDataReason.OTHER
 
 
 def main() -> None:
