@@ -60,7 +60,7 @@ Coverage includes branches (`[tool.coverage.run] branch = true`), not just lines
 
 GitHub Actions (`.github/workflows/ci.yml`) lints and tests every push to `develop`/`master` and every PR, publishing a JUnit test report and a coverage summary (with diff/patch coverage on PRs) as a sticky PR comment. The repo is public, and `master` has branch protection: changes only through a PR, the `Lint & Test` check must pass, and this applies to admins too (so direct pushes and force-pushes to `master` are rejected). The `report` job is skipped for PRs from forks, since GitHub gives fork PRs a read-only `GITHUB_TOKEN` and its check-run/comment steps would fail - so never make it a required check.
 
-Normal flow is committing to `develop` (or a feature branch off it) and opening a PR into `master` when asked to ship something.
+Normal flow: work on a feature branch off `develop` (or commit small things straight to `develop`, which is unprotected), open a PR into `develop`, and when asked to ship, open a release PR from `develop` into `master`. `master` only accepts that release PR: `.github/workflows/master-pr-guard.yml` ("Master PR source", a required check on `master` alongside "Lint & Test") fails any PR into `master` that isn't from this repo's own `develop` branch and opened by the owner - GitHub has no native setting for allowed source branches or PR authors, so a check is the only way. Anyone can open PRs into `develop` (from forks too); only people with write access can merge, which is only the owner (it's a personal repo, so GitHub's "restrict who can push" setting isn't available - keep it that way by not adding collaborators).
 
 ### Releases and PyPI
 

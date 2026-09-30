@@ -65,8 +65,9 @@ keyring, or autostart entry - see the script's docstring for details.
 
 ## Branches and pull requests
 
-- `develop` is the working branch; `master` only receives PRs from
-  `develop` for releases.
+- `develop` is the working branch; `master` only receives release PRs
+  from `develop`, opened by the maintainer (a CI check enforces this, so a
+  PR into `master` from anywhere else can't be merged).
 - Branch off `develop` and open your PR against `develop`.
 - Commit messages: a short imperative summary line, a blank line, then a
   bulleted list of what changed and why.
