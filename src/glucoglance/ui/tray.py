@@ -68,6 +68,9 @@ from glucoglance.ui.icon_renderer import (
 
 _APP_ID = "glucoglance"
 _PULSE_INTERVAL_MS = 500
+_ERROR_TEXT = "--"
+# Sizes the "--" icon shown before the first reading arrives; see _error_icon_spec.
+_TYPICAL_READING_TEXT = "000 →"
 
 
 @dataclass(frozen=True)
@@ -77,6 +80,7 @@ class _IconSpec:
     text: str
     color: Rgba
     filled: bool = False
+    min_width: int = 0
 
 
 class TrayDisplay:
@@ -116,6 +120,9 @@ class TrayDisplay:
         # name isn't redrawn at all, so every pulse frame is a new file.
         self._update_counter = 0
         self._recent_icon_names: list[str] = []
+        # Width of the last icon written; the "--" error icon is padded to
+        # it (see _error_icon_spec).
+        self._last_icon_width = render_text_icon(_TYPICAL_READING_TEXT).get_width()
         # Pulse state, only touched on the GTK main loop: whether a crossing
         # is still waiting to be acknowledged, the running GLib timer, the
         # two frames to alternate between (plain, filled) and which one is
@@ -131,7 +138,7 @@ class TrayDisplay:
 
         self._indicator = AppIndicator3.Indicator.new(
             _APP_ID,
-            self._write_icon(_IconSpec("--", DEFAULT_TEXT_COLOR_RGBA)),
+            self._write_icon(self._error_icon_spec()),
             AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
         )
         self._indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
@@ -287,7 +294,7 @@ class TrayDisplay:
         if self._quit_requested:
             return False
         self._stop_pulse_timer()
-        self._show_icon(_IconSpec("--", DEFAULT_TEXT_COLOR_RGBA))
+        self._show_icon(self._error_icon_spec())
         self._sync_stop_blinking_item()
         return False
 
@@ -309,6 +316,22 @@ class TrayDisplay:
         blinking = self._pulse_timer_id is not None
         self._stop_blinking_item.set_visible(blinking)
         self._stop_blinking_separator.set_visible(blinking)
+
+    def _error_icon_spec(self) -> _IconSpec:
+        """The "--" icon, padded to the width of the icon it replaces.
+
+        Seen live (GNOME Shell 46 + ubuntu-appindicators): switching from a
+        reading (e.g. 61x32) to a bare, narrow "--" (24x32) could leave the
+        previous image drawn underneath - a stale "74" with "--" over it,
+        i.e. showing a reading we no longer have - and the reverse switch
+        left "--" under the next reading. With "--" padded to the same
+        width, repeated error/recovery cycles (including mid-blink) came out
+        clean. The likely cause is the extension changing how it sizes the
+        icon's slot below a 1.5:1 aspect ratio; either way, never letting
+        the width jump avoids it (and stops neighboring tray icons shifting
+        sideways on errors).
+        """
+        return _IconSpec(_ERROR_TEXT, DEFAULT_TEXT_COLOR_RGBA, min_width=self._last_icon_width)
 
     def _show_icon(self, spec: _IconSpec) -> None:
         """Render `spec` under a fresh filename and make it the indicator's icon."""
@@ -355,8 +378,9 @@ class TrayDisplay:
 
         self._update_counter += 1
         icon_name = f"reading-{self._update_counter}"
-        surface = render_text_icon(spec.text, spec.color, filled=spec.filled)
+        surface = render_text_icon(spec.text, spec.color, filled=spec.filled, min_width=spec.min_width)
         surface.write_to_png(str(self._icon_dir / f"{icon_name}.png"))
+        self._last_icon_width = surface.get_width()
 
         # Keep the current file and one prior (in case the Shell hasn't
         # finished reading the previous one yet) and delete anything older.

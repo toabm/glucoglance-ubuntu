@@ -50,6 +50,7 @@ def render_text_icon(
     color: Rgba = DEFAULT_TEXT_COLOR_RGBA,
     *,
     filled: bool = False,
+    min_width: int = 0,
 ) -> cairo.ImageSurface:
     """Draw `text` centered in `color`, sized to fit it with a small margin.
     Returns a Cairo surface ready to be written to PNG.
@@ -57,11 +58,14 @@ def render_text_icon(
     With `filled`, `color` becomes a rounded background filling the whole
     image and the text is drawn on top of it in black or white, whichever
     contrasts better (see `contrasting_text_color`).
+
+    `min_width` pads the image (transparently, text still centered) to at
+    least that many pixels wide - see TrayDisplay._error_icon_spec for why.
     """
     layout = _build_layout(text)
     _ink, logical = layout.get_pixel_extents()
     margin = _RENDER_HEIGHT // 8
-    width = max(logical.width + margin * 2, 1)
+    width = max(logical.width + margin * 2, min_width, 1)
     height = _RENDER_HEIGHT
 
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
@@ -84,12 +88,13 @@ def render_text_icon_png_bytes(
     color: Rgba = DEFAULT_TEXT_COLOR_RGBA,
     *,
     filled: bool = False,
+    min_width: int = 0,
 ) -> bytes:
     """Same as `render_text_icon`, but returns encoded PNG bytes - handy for
     tests, which don't need a real file on disk."""
     import io
 
-    surface = render_text_icon(text, color, filled=filled)
+    surface = render_text_icon(text, color, filled=filled, min_width=min_width)
     buf = io.BytesIO()
     surface.write_to_png(buf)
     return buf.getvalue()

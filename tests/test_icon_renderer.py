@@ -63,3 +63,12 @@ def test_filled_icon_has_an_opaque_background():
 def test_contrasting_text_color_picks_dark_on_light_and_white_on_dark():
     assert contrasting_text_color(parse_hex_color("#F5D334")) == (0.1, 0.1, 0.1, 1)
     assert contrasting_text_color(parse_hex_color("#1A237E")) == (1, 1, 1, 1)
+
+
+def test_min_width_pads_narrow_text_but_never_shrinks():
+    narrow = render_text_icon("--")
+    padded = render_text_icon("--", min_width=61)
+    wide = render_text_icon("188 ↑", min_width=10)
+    assert narrow.get_width() < 61
+    assert padded.get_width() == 61
+    assert wide.get_width() == render_text_icon("188 ↑").get_width()
