@@ -60,7 +60,7 @@ def test_hysteresis_does_not_delay_entering_a_range():
 
 
 def test_recrossing_after_recovery_starts_a_new_stretch():
-    states = _feed(RangeTracker(), [190, 150, 190], step_minutes=10)
+    states = _feed(RangeTracker(), [190, 150, 190], step_minutes=5)
     assert states[2].just_crossed
 
 

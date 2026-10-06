@@ -30,7 +30,7 @@ from glucoglance.domain.range import (
 from glucoglance.domain.reading import GlucoseReading
 
 DEFAULT_HYSTERESIS_MGDL = 5
-DEFAULT_MAX_GAP = timedelta(minutes=15)
+DEFAULT_MAX_GAP = timedelta(minutes=10)
 
 
 @dataclass(frozen=True)
