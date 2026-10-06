@@ -44,7 +44,8 @@ class Settings:
     color_normal: str = _DEFAULT_COLOR_NORMAL
     color_high: str = _DEFAULT_COLOR_HIGH
     # Out-of-range highlight (see ui.tray / domain.range_tracker): blink
-    # the icon after crossing a threshold, until acknowledged.
+    # the icon after crossing a threshold, then keep it filled, until
+    # acknowledged.
     highlight_pulse: bool = True
     range_hysteresis_mgdl: int = DEFAULT_HYSTERESIS_MGDL
     autostart_enabled: bool = True

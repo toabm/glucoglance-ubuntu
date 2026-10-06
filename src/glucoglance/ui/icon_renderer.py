@@ -70,7 +70,7 @@ def render_text_icon(
     contrasts better (see `contrasting_text_color`).
 
     `min_width` pads the image (transparently, text still centered) to at
-    least that many pixels wide - see TrayDisplay._error_icon_spec for why.
+    least that many pixels wide - see TrayDisplay._no_data_icon_spec for why.
     """
     layout = _build_layout(text)
     _ink, logical = layout.get_pixel_extents()
@@ -140,8 +140,9 @@ def parse_hex_color(hex_color: str) -> Rgba:
 
 def contrasting_text_color(background: Rgba) -> Rgba:
     """Near-black or white, whichever reads better on `background`, so a
-    user-chosen range color never leaves the text unreadable. Uses the WCAG relative-luminance formula; 0.179 is where black and white
-    text have equal contrast against the background."""
+    user-chosen range color never leaves the text unreadable. Uses the
+    WCAG relative-luminance formula; 0.179 is where black and white text
+    have equal contrast against the background."""
     r, g, b, _a = background
     luminance = 0.2126 * _linearize(r) + 0.7152 * _linearize(g) + 0.0722 * _linearize(b)
     return _DARK_TEXT_COLOR_RGBA if luminance > 0.179 else DEFAULT_TEXT_COLOR_RGBA

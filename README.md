@@ -153,8 +153,10 @@ Right-click the tray icon for:
   there's no current reading, a greyed line below it gives the reason.
 - **Stop blinking (middle-click)** - only shown while the icon is
   blinking, which it does when your reading leaves the configured range.
-  Middle-clicking the icon does the same without opening the menu. It
-  also stops by itself once the reading is back in range.
+  After 20 minutes it stops blinking by itself but keeps the colored
+  background, and this item becomes **Clear highlight (middle-click)**.
+  Middle-clicking the icon does the same without opening the menu. The
+  highlight also clears by itself once the reading is back in range.
 - **Start at login** - checkbox, on by default (see "Running automatically
   at login" below).
 - **Restart** - reloads the app, e.g. after editing `config.toml`.
@@ -212,7 +214,7 @@ high_threshold_mgdl = 180   # above this, the icon turns yellow (green in betwee
 color_low = "#ED4343"
 color_normal = "#4DCC66"
 color_high = "#F5D334"
-highlight_pulse = true         # blink after leaving the range, until acknowledged (see above)
+highlight_pulse = true         # highlight (blink, then steady) after leaving the range, until acknowledged (see above)
 range_hysteresis_mgdl = 5      # must come this far back inside a threshold to count as in range
 autostart_enabled = true   # start automatically at login (see below)
 ```

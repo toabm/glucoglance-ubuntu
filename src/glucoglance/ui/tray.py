@@ -18,9 +18,10 @@ runs on either.
 
 When a reading crosses out of range the icon also tries to catch the eye,
 without sound or popups: it blinks (alternating a filled background with
-the plain colored text) until the user acknowledges it - with the "Stop
-blinking" menu item, which only appears while blinking, or by
-middle-clicking the icon - or the reading comes back in range. Once
+the plain colored text) for up to 20 minutes, then stays filled, until
+the user acknowledges it - with the menu item that only appears while
+highlighted ("Stop blinking", or "Clear highlight" once it's steady), or
+by middle-clicking the icon - or the reading comes back in range. Once
 acknowledged it goes back to the plain colored text; the range color
 alone is enough from then on. See `domain.range_tracker` for the
 crossing/hysteresis logic.
@@ -31,8 +32,8 @@ becomes the app's own eye/gauge/drop mark with a red eye
 says why ("No data: can't reach LibreLinkUp", etc.). Before the first
 reading arrives, the icon is the same mark in its normal colors.
 
-Merely opening the menu deliberately does *not* stop the blinking, so
-the "Stop blinking" item is still there to click. Hovering can't be
+Merely opening the menu deliberately does *not* stop the highlight, so
+its menu item is still there to click. Hovering can't be
 used either way: the Shell handles hover internally and never tells the
 app.
 """
@@ -41,6 +42,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -78,6 +80,10 @@ from glucoglance.ui.icon_renderer import (
 
 _APP_ID = "glucoglance"
 _PULSE_INTERVAL_MS = 500
+# How long a crossing blinks before settling on the steady filled icon.
+_BLINK_DURATION_S = 20 * 60
+_STOP_BLINKING_LABEL = "Stop blinking (middle-click)"
+_CLEAR_HIGHLIGHT_LABEL = "Clear highlight (middle-click)"
 # Drawn instead of the app's mark if its icon file can't be loaded.
 _NO_DATA_FALLBACK_TEXT = "--"
 # Sizes the icon shown before the first reading arrives; see _no_data_icon_spec.
@@ -139,22 +145,31 @@ class TrayDisplay:
         # the file's content changes - so a fixed/alternating set of names
         # just replays stale cached bitmaps. Every update instead gets a
         # brand-new, never-before-seen filename to guarantee a fresh read;
-        # _write_icon() deletes older files right after. This applies to
-        # the pulse too: confirmed live, switching back to an already-seen
-        # name isn't redrawn at all, so every pulse frame is a new file.
+        # _write_icon() deletes older files right after.
+        #
+        # That also rules out blinking by alternating two icon names:
+        # switching back to an already-seen name isn't redrawn at all
+        # (confirmed live). Instead, each highlighted reading gets one
+        # fresh pair - plain as the normal icon, filled as the *attention*
+        # icon - and blinking toggles the indicator's status between ACTIVE
+        # and ATTENTION, which the Shell does redraw every time (confirmed
+        # live), so blinking itself creates no new names. An earlier
+        # version wrote a new file per 500 ms frame instead, and
+        # gnome-shell held on to ~12 MB per 30 minutes of blinking, never
+        # freed; with the status toggle its memory stayed flat.
         self._update_counter = 0
         self._recent_icon_names: list[str] = []
         # Width of the last icon written; "no data" icons are padded to it
         # (see _no_data_icon_spec).
         self._last_icon_width = render_text_icon(_TYPICAL_READING_TEXT).get_width()
-        # Pulse state, only touched on the GTK main loop: whether a crossing
-        # is still waiting to be acknowledged, the running GLib timer, the
-        # two frames to alternate between (plain, filled) and which one is
-        # showing.
-        self._pulse_pending = False
+        # Highlight state, only touched on the GTK main loop: whether a
+        # crossing is still waiting to be acknowledged, when its blinking
+        # phase ends (a time.monotonic() value), the running blink timer,
+        # and whether the indicator's status is currently ATTENTION.
+        self._highlight_pending = False
+        self._blink_deadline = 0.0
         self._pulse_timer_id: int | None = None
-        self._pulse_frames: tuple[_IconSpec, _IconSpec] | None = None
-        self._pulse_frame_index = 0
+        self._attention_shown = False
         # Set once shutdown() is called, even if it happens before run()
         # starts the main loop (see shutdown()'s docstring for why that can
         # happen) - lets run() skip entering the loop at all in that case.
@@ -171,11 +186,12 @@ class TrayDisplay:
         # Middle-clicking the icon "activates" this item directly, without
         # opening the menu - the one click the Shell forwards to the app
         # instead of handling itself.
-        self._indicator.set_secondary_activate_target(self._stop_blinking_item)
+        self._indicator.set_secondary_activate_target(self._acknowledge_item)
 
     def _build_menu(self) -> Gtk.Menu:
         """Build the indicator's right-click menu: "GlucoGlance" (doubles as
-        an About trigger), "Stop blinking" (only shown while blinking), a
+        an About trigger), "Stop blinking"/"Clear highlight" (only shown
+        while highlighted), a
         "start at login" checkbox, Restart (to pick up a config.toml edit
         without a terminal), Log out, and Quit."""
         menu = Gtk.Menu()
@@ -194,12 +210,13 @@ class TrayDisplay:
 
         # Also the middle-click target (see __init__), which the label
         # mentions since there's no other way to discover that shortcut.
-        # Shown/hidden together with its separator by _sync_stop_blinking_item().
-        self._stop_blinking_item = Gtk.MenuItem(label="Stop blinking (middle-click)")
-        self._stop_blinking_item.connect("activate", lambda *_args: self._acknowledge_highlight())
-        menu.append(self._stop_blinking_item)
-        self._stop_blinking_separator = Gtk.SeparatorMenuItem()
-        menu.append(self._stop_blinking_separator)
+        # Shown/hidden (and relabeled) together with its separator by
+        # _sync_acknowledge_item().
+        self._acknowledge_item = Gtk.MenuItem(label=_STOP_BLINKING_LABEL)
+        self._acknowledge_item.connect("activate", lambda *_args: self._acknowledge_highlight())
+        menu.append(self._acknowledge_item)
+        self._acknowledge_separator = Gtk.SeparatorMenuItem()
+        menu.append(self._acknowledge_separator)
 
         autostart_item = Gtk.CheckMenuItem(label="Start at login")
         autostart_item.set_active(self._settings.autostart_enabled)
@@ -221,7 +238,7 @@ class TrayDisplay:
         menu.append(quit_item)
 
         menu.show_all()
-        self._sync_stop_blinking_item()
+        self._sync_acknowledge_item(visible=False, blinking=False)
         self._sync_no_data_item(None)
         return menu
 
@@ -296,60 +313,75 @@ class TrayDisplay:
 
     def _apply_reading(self, text: str, state: RangeState) -> bool:
         """GLib.idle_add callback: show a reading's icon in its range color,
-        blinking if it's out of range and the crossing hasn't been
+        highlighted if it's out of range and the crossing hasn't been
         acknowledged yet. Returning False tells GLib not to call this
         again."""
         if self._quit_requested:
             return False
-        self._stop_pulse_timer()
 
         color = self._range_colors[state.glucose_range]
         if not state.is_out_of_range:
-            self._pulse_pending = False
+            self._highlight_pending = False
         elif state.just_crossed and self._settings.highlight_pulse:
-            self._pulse_pending = True
+            # A new crossing (re)starts the blinking phase.
+            self._highlight_pending = True
+            self._blink_deadline = time.monotonic() + _BLINK_DURATION_S
 
-        plain = _IconSpec(text, color)
-        if self._pulse_pending:
-            # A new reading mid-blink re-renders both frames with the new value.
-            self._start_pulse(plain, _IconSpec(text, color, filled=True))
-        else:
-            self._show_icon(plain)
-        self._sync_stop_blinking_item()
+        self._indicator.set_icon_full(self._write_icon(_IconSpec(text, color)), text)
+        if self._highlight_pending:
+            # A new pair of names per reading; the running blink (if any)
+            # just carries on with the new value.
+            filled = _IconSpec(text, color, filled=True)
+            self._indicator.set_attention_icon_full(self._write_icon(filled), text)
+        self._sync_highlight()
         self._sync_no_data_item(None)
         return False
 
     def _apply_error(self, reason: NoDataReason) -> bool:
         """GLib.idle_add callback: show the red-eye "no data" icon and the
-        reason in the menu. An unacknowledged crossing stays pending, so
-        blinking resumes if the next successful reading is still out of
-        range."""
+        reason in the menu. An unacknowledged crossing stays pending, so the
+        highlight resumes (blinking or steady, depending on how long it's
+        been) if the next successful reading is still out of range."""
         if self._quit_requested:
             return False
         self._stop_pulse_timer()
+        # Icon first, then the status: the other order would briefly show
+        # the old reading's plain icon.
         self._show_icon(self._no_data_icon_spec(reason))
-        self._sync_stop_blinking_item()
+        self._set_attention(False)
+        self._sync_acknowledge_item(visible=False, blinking=False)
         self._sync_no_data_item(reason)
         return False
 
     def _acknowledge_highlight(self) -> None:
-        """Stop blinking until the next crossing, settling on the plain
-        colored text. Called from the "Stop blinking" item (directly or via
+        """Clear the highlight until the next crossing, settling on the
+        plain colored text. Called from the menu item (directly or via
         middle-click), on the main loop."""
-        self._pulse_pending = False
-        if self._pulse_timer_id is not None:
-            self._stop_pulse_timer()
-            if self._pulse_frame_index != 0 and self._pulse_frames is not None:
-                self._show_icon(self._pulse_frames[0])
-        self._sync_stop_blinking_item()
+        self._highlight_pending = False
+        self._sync_highlight()
 
-    def _sync_stop_blinking_item(self) -> None:
-        """Show "Stop blinking" (and its separator) only while the icon is
-        actually blinking - not e.g. while a poll error shows "no data",
-        even if blinking will resume after it."""
-        blinking = self._pulse_timer_id is not None
-        self._stop_blinking_item.set_visible(blinking)
-        self._stop_blinking_separator.set_visible(blinking)
+    def _sync_highlight(self) -> None:
+        """Bring the blink timer, the indicator's status and the menu item
+        in line with the highlight state: blinking until the deadline, then
+        the steady filled (attention) icon, until acknowledged."""
+        blinking = self._highlight_pending and time.monotonic() < self._blink_deadline
+        if blinking:
+            if self._pulse_timer_id is None:
+                self._set_attention(True)
+                self._pulse_timer_id = GLib.timeout_add(_PULSE_INTERVAL_MS, self._on_pulse_tick)
+        else:
+            self._stop_pulse_timer()
+            self._set_attention(self._highlight_pending)
+        self._sync_acknowledge_item(visible=self._highlight_pending, blinking=blinking)
+
+    def _sync_acknowledge_item(self, *, visible: bool, blinking: bool) -> None:
+        """Show the acknowledge item (and its separator) only while the
+        icon is actually highlighted - not e.g. while a poll error shows "no
+        data", even if the highlight will resume after it - labeled for
+        what clicking it will stop."""
+        self._acknowledge_item.set_label(_STOP_BLINKING_LABEL if blinking else _CLEAR_HIGHLIGHT_LABEL)
+        self._acknowledge_item.set_visible(visible)
+        self._acknowledge_separator.set_visible(visible)
 
     def _sync_no_data_item(self, reason: NoDataReason | None) -> None:
         """Show the menu's reason line for `reason`, or hide it (None)."""
@@ -388,30 +420,31 @@ class TrayDisplay:
         """Render `spec` under a fresh filename and make it the indicator's icon."""
         self._indicator.set_icon_full(self._write_icon(spec), spec.description or spec.text)
 
-    def _start_pulse(self, plain: _IconSpec, filled: _IconSpec) -> None:
-        """Show `filled` and start alternating it with `plain` every
-        _PULSE_INTERVAL_MS, until `_stop_pulse_timer()` is called. Frame
-        index 0 is always the plain one, which is what acknowledging
-        settles on."""
-        self._pulse_frames = (plain, filled)
-        self._pulse_frame_index = 1
-        self._show_icon(filled)
-        self._pulse_timer_id = GLib.timeout_add(_PULSE_INTERVAL_MS, self._on_pulse_tick)
+    def _set_attention(self, on: bool) -> None:
+        """Switch the indicator between its attention icon (the filled
+        frame) and its normal icon, via its status."""
+        if on != self._attention_shown:
+            self._attention_shown = on
+            status = AppIndicator3.IndicatorStatus.ATTENTION if on else AppIndicator3.IndicatorStatus.ACTIVE
+            self._indicator.set_status(status)
 
     def _on_pulse_tick(self) -> bool:
-        """GLib timer callback: show the other pulse frame. Returns whether
-        GLib should keep calling it."""
-        assert self._pulse_frames is not None
+        """GLib timer callback: flip between the plain and filled icons, or
+        settle on the filled one once the blinking phase is over. Returns
+        whether GLib should keep calling it."""
         if self._quit_requested:
             self._pulse_timer_id = None
             return False
-        self._pulse_frame_index = 1 - self._pulse_frame_index
-        self._show_icon(self._pulse_frames[self._pulse_frame_index])
+        if time.monotonic() >= self._blink_deadline:
+            self._pulse_timer_id = None
+            self._sync_highlight()
+            return False
+        self._set_attention(not self._attention_shown)
         return True
 
     def _stop_pulse_timer(self) -> None:
         """Cancel the pulse timer, if one is running. Leaves
-        `_pulse_pending` alone, so a later reading can resume blinking."""
+        `_highlight_pending` alone, so a later reading can resume it."""
         if self._pulse_timer_id is not None:
             GLib.source_remove(self._pulse_timer_id)
             self._pulse_timer_id = None
@@ -433,10 +466,11 @@ class TrayDisplay:
         surface.write_to_png(str(self._icon_dir / f"{icon_name}.png"))
         self._last_icon_width = surface.get_width()
 
-        # Keep the current file and one prior (in case the Shell hasn't
-        # finished reading the previous one yet) and delete anything older.
+        # Keep the current (plain, filled) pair and the one before it (in
+        # case the Shell hasn't finished reading those yet) and delete
+        # anything older.
         self._recent_icon_names.append(icon_name)
-        while len(self._recent_icon_names) > 2:
+        while len(self._recent_icon_names) > 4:
             (self._icon_dir / f"{self._recent_icon_names.pop(0)}.png").unlink(missing_ok=True)
 
         return icon_name
