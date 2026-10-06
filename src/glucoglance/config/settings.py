@@ -3,7 +3,8 @@
 Only non-secret configuration lives here (polling interval, display unit,
 which UI frontend to use, the account email, a cached region host to skip
 LibreLinkUp's redirect round trip, the glucose-range thresholds/colors the
-tray icon uses, and whether to start at login). The account password is
+tray icon uses, the out-of-range highlight options, and whether to start
+at login). The account password is
 never written to this file - see `config.credentials` for that.
 """
 
@@ -15,6 +16,7 @@ from pathlib import Path
 import tomli_w
 
 from glucoglance.domain.range import DEFAULT_HIGH_THRESHOLD_MGDL, DEFAULT_LOW_THRESHOLD_MGDL
+from glucoglance.domain.range_tracker import DEFAULT_HYSTERESIS_MGDL
 from glucoglance.domain.units import GlucoseUnit
 
 _APP_DIR_NAME = "glucoglance"
@@ -41,6 +43,11 @@ class Settings:
     color_low: str = _DEFAULT_COLOR_LOW
     color_normal: str = _DEFAULT_COLOR_NORMAL
     color_high: str = _DEFAULT_COLOR_HIGH
+    # Out-of-range highlight (see ui.tray / domain.range_tracker): blink
+    # the icon after crossing a threshold, then keep it filled, until
+    # acknowledged.
+    highlight_pulse: bool = True
+    range_hysteresis_mgdl: int = DEFAULT_HYSTERESIS_MGDL
     autostart_enabled: bool = True
 
     def to_toml_dict(self) -> dict:
@@ -69,6 +76,8 @@ class Settings:
             color_low=data.get("color_low", defaults.color_low),
             color_normal=data.get("color_normal", defaults.color_normal),
             color_high=data.get("color_high", defaults.color_high),
+            highlight_pulse=data.get("highlight_pulse", defaults.highlight_pulse),
+            range_hysteresis_mgdl=data.get("range_hysteresis_mgdl", defaults.range_hysteresis_mgdl),
             autostart_enabled=data.get("autostart_enabled", defaults.autostart_enabled),
         )
 
