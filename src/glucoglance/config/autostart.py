@@ -41,22 +41,28 @@ def set_autostart_enabled(enabled: bool) -> None:
         autostart_desktop_path().unlink(missing_ok=True)
 
 
-def _desktop_entry_content() -> str:
-    """Build the .desktop file content.
+def app_exec_path() -> Path:
+    """The installed `glucoglance` script next to the currently running
+    interpreter, for a .desktop file's Exec= key.
 
-    Exec points at the actual installed script next to the currently
-    running interpreter, not just the bare command name "glucoglance" -
-    that name isn't guaranteed to be on PATH in a login session (e.g. when
-    installed into a plain venv rather than via pipx). See
-    `_STARTUP_DELAY_SECONDS` above for why the delay is a separate key
-    rather than part of this Exec= value.
+    An absolute path rather than just the bare command name "glucoglance":
+    that name isn't guaranteed to be on PATH in a login session or for a
+    graphical launcher (e.g. when installed into a plain venv rather than
+    via pipx). Also used by `applications_entry.py`.
     """
-    exec_path = Path(sys.executable).with_name("glucoglance")
+    return Path(sys.executable).with_name("glucoglance")
+
+
+def _desktop_entry_content() -> str:
+    """Build the .desktop file content. See `app_exec_path()` for the
+    Exec= value, and `_STARTUP_DELAY_SECONDS` above for why the delay is a
+    separate key rather than part of it.
+    """
     return (
         "[Desktop Entry]\n"
         "Type=Application\n"
         "Name=GlucoGlance\n"
-        f"Exec={exec_path}\n"
+        f"Exec={app_exec_path()}\n"
         f"Icon={app_icon_path()}\n"
         "X-GNOME-Autostart-enabled=true\n"
         f"X-GNOME-Autostart-Delay={_STARTUP_DELAY_SECONDS}\n"

@@ -60,6 +60,12 @@ except ValueError:
 
 from gi.repository import GLib, Gtk
 
+from glucoglance.config.applications_entry import (
+    is_applications_entry_installed,
+    refresh_applications_entry,
+    set_applications_entry_installed,
+    system_entry_installed,
+)
 from glucoglance.config.autostart import set_autostart_enabled
 from glucoglance.config.credentials import delete_password
 from glucoglance.config.settings import Settings, save_settings
@@ -138,6 +144,10 @@ class TrayDisplay:
         # startup - covers both a fresh install (setting defaults to True,
         # so this installs it immediately) and a manual config.toml edit.
         set_autostart_enabled(settings.autostart_enabled)
+        # Same idea for the Applications-menu entry, except that the file
+        # itself is the setting: only rewritten if the user added it, so
+        # its paths follow the current install.
+        refresh_applications_entry()
 
         self._icon_dir = Path(tempfile.mkdtemp(prefix="glucoglance-icons-"))
         # Confirmed live: GNOME Shell caches a tray icon bitmap by filename
@@ -191,9 +201,10 @@ class TrayDisplay:
     def _build_menu(self) -> Gtk.Menu:
         """Build the indicator's right-click menu: "GlucoGlance" (doubles as
         an About trigger), "Stop blinking"/"Clear highlight" (only shown
-        while highlighted), a
-        "start at login" checkbox, Restart (to pick up a config.toml edit
-        without a terminal), Log out, and Quit."""
+        while highlighted), a "start at login" checkbox, a "show in
+        Applications menu" checkbox (not shown when a system-wide entry
+        already exists), Restart (to pick up a config.toml edit without a
+        terminal), Log out, and Quit."""
         menu = Gtk.Menu()
 
         about_item = Gtk.MenuItem(label="GlucoGlance")
@@ -223,6 +234,15 @@ class TrayDisplay:
         autostart_item.connect("toggled", self._on_autostart_toggled)
         menu.append(autostart_item)
 
+        # A system-wide entry (from the .deb) already puts us in the
+        # Applications menu, and removing our per-user one wouldn't take
+        # it out - see applications_entry's module docstring.
+        if not system_entry_installed():
+            applications_item = Gtk.CheckMenuItem(label="Show in Applications menu")
+            applications_item.set_active(is_applications_entry_installed())
+            applications_item.connect("toggled", self._on_applications_entry_toggled)
+            menu.append(applications_item)
+
         menu.append(Gtk.SeparatorMenuItem())
 
         restart_item = Gtk.MenuItem(label="Restart")
@@ -249,6 +269,13 @@ class TrayDisplay:
         self._settings.autostart_enabled = enabled
         save_settings(self._settings)
         set_autostart_enabled(enabled)
+
+    @staticmethod
+    def _on_applications_entry_toggled(item: Gtk.CheckMenuItem) -> None:
+        """Install/remove the Applications-menu entry to match the
+        checkbox. Nothing goes into config.toml: whether the file exists
+        is the setting."""
+        set_applications_entry_installed(item.get_active())
 
     def _restart(self) -> None:
         """Re-exec the whole process in place. `os.execv` replaces the
