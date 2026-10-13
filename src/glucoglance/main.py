@@ -24,7 +24,9 @@ from glucoglance.client.errors import AuthError, NetworkError, StaleDataError
 from glucoglance.client.librelinkup import LibreLinkUpClient
 from glucoglance.config.credentials import get_password, set_password
 from glucoglance.config.settings import Settings, load_settings, save_settings
+from glucoglance.instance_lock import acquire_instance_lock
 from glucoglance.poller.poller import EventBus, GlucosePoller, PollErrorEvent, ReadingUpdatedEvent
+from glucoglance.ui.already_running_dialog import show_already_running
 from glucoglance.ui.app_icon import app_icon_path
 from glucoglance.ui.credential_prompt import prompt_for_credentials, show_message
 from glucoglance.ui.display import NoDataReason
@@ -210,6 +212,12 @@ def main() -> None:
     # Applies to every GTK window/dialog created from here on (credential prompt, message dialogs), so it only needs
     # setting once.
     Gtk.Window.set_default_icon_from_file(str(app_icon_path()))
+    # Held (by keeping this reference) until the app exits; see instance_lock.
+    instance_lock = acquire_instance_lock()
+    if instance_lock is None:
+        logger.info("GlucoGlance is already running; not starting a second copy")
+        show_already_running()
+        return
     Application().start()
 
 

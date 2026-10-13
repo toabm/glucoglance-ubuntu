@@ -28,7 +28,8 @@ out" does nothing), no writes to config.toml
 (your saved settings are still read, e.g. thresholds, colors and unit),
 and no changes to the autostart or Applications-menu entries. The tray's
 "Restart" re-runs this script rather than the real app. The icon can
-appear alongside a running real GlucoGlance.
+appear alongside a running real GlucoGlance (the single-instance check is
+skipped).
 """
 
 import argparse
@@ -135,6 +136,8 @@ def _install_test_doubles(value_file: Path, interval_seconds: int) -> None:
         logger.info("Simulated AuthError: skipping the credential prompt")
         return False
 
+    # Not an InstanceLock, but main() only checks it isn't None.
+    app_main.acquire_instance_lock = lambda: object()
     app_main.load_settings = load_settings_for_test
     app_main.save_settings = lambda settings: None
     app_main.Application._ensure_client = ensure_fake_client

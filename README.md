@@ -188,6 +188,10 @@ after a reinstall into a different place.)
 If you installed the `.deb`, you don't need this - it already adds
 GlucoGlance to the Applications menu, so the checkbox isn't shown.
 
+Only one copy runs at a time: launching GlucoGlance while it's already
+running just shows a short "GlucoGlance is already running" notice
+pointing at the icon in the top bar.
+
 ## Configuration
 
 Settings live at `~/.config/glucoglance/config.toml` (created with
