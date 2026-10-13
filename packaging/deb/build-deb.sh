@@ -51,7 +51,8 @@ chmod 755 "$stage/usr/bin/glucoglance"
 
 # Applications-menu entry + icon, so it shows up in GNOME's app search.
 install -Dm644 "$here/glucoglance.desktop" "$stage/usr/share/applications/glucoglance.desktop"
-install -Dm644 "$repo_root/src/glucoglance/assets/icon.png" "$stage/usr/share/icons/hicolor/256x256/apps/glucoglance.png"
+install -Dm644 "$repo_root/src/glucoglance/assets/app-icon.svg" "$stage/usr/share/icons/hicolor/scalable/apps/glucoglance.svg"
+install -Dm644 "$repo_root/src/glucoglance/assets/app-icon.png" "$stage/usr/share/icons/hicolor/512x512/apps/glucoglance.png"
 install -Dm644 "$repo_root/LICENSE" "$stage/usr/share/doc/$package/copyright"
 
 install -d "$stage/DEBIAN"
