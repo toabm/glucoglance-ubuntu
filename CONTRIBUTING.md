@@ -52,7 +52,8 @@ echo 120 > "$XDG_RUNTIME_DIR/glucoglance-fake-reading"   # from another terminal
 ```
 
 It needs no LibreLinkUp account and never touches your real settings,
-keyring, or autostart entry - see the script's docstring for details.
+keyring, autostart entry, or Applications-menu entry - see the script's
+docstring for details.
 
 ## Code style
 

@@ -26,9 +26,9 @@ LibreLinkUp login or network access, no keyring access (so no credential
 prompt - not even for a simulated "auth" failure - and the tray's "Log
 out" does nothing), no writes to config.toml
 (your saved settings are still read, e.g. thresholds, colors and unit),
-and no changes to the autostart entry. The tray's "Restart" re-runs this
-script rather than the real app. The icon can appear alongside a running
-real GlucoGlance.
+and no changes to the autostart or Applications-menu entries. The tray's
+"Restart" re-runs this script rather than the real app. The icon can
+appear alongside a running real GlucoGlance.
 """
 
 import argparse
@@ -111,7 +111,8 @@ def _parse_args() -> argparse.Namespace:
 
 def _install_test_doubles(value_file: Path, interval_seconds: int) -> None:
     """Patch the app so it runs on the fake client and can't touch real
-    settings, credentials, or the autostart entry (see module docstring)."""
+    settings, credentials, or the autostart/Applications-menu entries (see
+    module docstring)."""
     real_load_settings = app_main.load_settings
 
     def load_settings_for_test():
@@ -140,6 +141,8 @@ def _install_test_doubles(value_file: Path, interval_seconds: int) -> None:
     app_main.Application._reauthenticate = reauthenticate_disabled
     tray.save_settings = lambda settings: None
     tray.set_autostart_enabled = lambda enabled: None
+    tray.refresh_applications_entry = lambda: None
+    tray.set_applications_entry_installed = lambda installed: None
     tray.TrayDisplay._restart = restart_this_script
     tray.TrayDisplay._log_out = log_out_disabled
 

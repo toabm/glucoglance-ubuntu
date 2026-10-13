@@ -159,47 +159,34 @@ Right-click the tray icon for:
   highlight also clears by itself once the reading is back in range.
 - **Start at login** - checkbox, on by default (see "Running automatically
   at login" below).
+- **Show in Applications menu** - checkbox, off by default (see "Adding it
+  to your Applications menu" below). Not shown if you installed the `.deb`,
+  which already adds GlucoGlance there.
 - **Restart** - reloads the app, e.g. after editing `config.toml`.
 - **Quit**.
 
 ## Adding it to your Applications menu
 
-This is separate from "start at login" below: this makes GlucoGlance
-show up as a proper icon in GNOME's Activities overview and app search
-(so you can launch it manually, or pin it to the Dock), rather than only
-starting silently in the background. Run this once, from the repo
-directory, with the venv already created as above:
+This is separate from "start at login" below: GlucoGlance normally starts
+by itself at login, and this adds a launcher for starting it by hand
+instead (e.g. after choosing **Quit**). It shows up in GNOME's Activities
+overview and app search, and from there you can drag it onto the Dock to
+pin it.
 
-```bash
-test -x .venv/bin/glucoglance || { echo "Run this from the glucoglance-ubuntu directory (the venv wasn't found here)"; exit 1; }
-ICON_PATH=$(.venv/bin/python3 -c "from glucoglance.ui.app_icon import app_icon_path; print(app_icon_path())")
-mkdir -p ~/.local/share/applications
-cat > ~/.local/share/applications/glucoglance.desktop <<EOF
-[Desktop Entry]
-Type=Application
-Name=GlucoGlance
-Exec=$(pwd)/.venv/bin/glucoglance
-Icon=$ICON_PATH
-Comment=Shows current blood glucose reading in the top bar
-Terminal=false
-Categories=Utility;
-EOF
-```
+To add it, right-click the tray icon and tick **Show in Applications
+menu**; untick it to remove the launcher again. Search for "GlucoGlance"
+in the Activities overview (press the Super/Windows key and start typing)
+to find it.
 
-It should now appear if you search for "GlucoGlance" in GNOME's
-Activities overview (press the Super/Windows key and start typing). From
-there you can drag it onto the Dock to pin it.
+(This writes `~/.local/share/applications/glucoglance.desktop`, the
+standard location for per-user apps. Its `Exec=` line is the absolute path
+to the installed `glucoglance` script rather than the bare command, since
+a graphical launcher doesn't necessarily have your venv on its `PATH`. The
+app refreshes these paths on every start, so the launcher keeps working
+after a reinstall into a different place.)
 
-(This installs into `~/.local/share/applications`, the standard location
-for manually-installed apps - not `/usr/share/applications`, which is
-where apt/snap-installed apps land since that directory is shared across
-all users on the machine. GNOME scans both identically, so this works the
-same either way; no need to move it.)
-
-(The `Exec=` line uses an absolute path to the venv you just created,
-rather than the bare `glucoglance` command, since a graphical launcher
-doesn't necessarily have your venv on its `PATH`. If you ever move the
-`glucoglance-ubuntu` folder, re-run the command above to update it.)
+If you installed the `.deb`, you don't need this - it already adds
+GlucoGlance to the Applications menu, so the checkbox isn't shown.
 
 ## Configuration
 
