@@ -1,0 +1,51 @@
+# Master PR guard: `master` only takes release PRs, i.e. PRs from this
+# repo's own `develop` branch, opened by the repo owner. GitHub has no
+# setting for "allowed source branch" or "who may open a PR", so this job
+# fails for any other PR into master, and `master`'s branch protection
+# requires its "Master PR source" check - such a PR can still be opened,
+# but never merged. Everything else goes through `develop` first, which
+# accepts PRs from any branch or fork (merging is limited to people with
+# write access, i.e. the owner).
+name: Master PR guard
+run-name: "Master PR guard: PR #${{ github.event.pull_request.number }} from ${{ github.head_ref }}"
+
+on:
+  pull_request:
+    branches:
+      - master
+    # `edited` re-runs the check if a PR's base branch is changed to master.
+    types: [opened, reopened, synchronize, edited]
+
+permissions: {}
+
+jobs:
+  guard:
+    name: Master PR source
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require develop, from this repo, opened by the owner
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          problems=0
+          if [ "$HEAD_REPO" != "$THIS_REPO" ]; then
+            echo "::error::PRs into master must come from this repository (got $HEAD_REPO). Please target 'develop' instead."
+            problems=1
+          fi
+          if [ "$HEAD_REF" != "develop" ]; then
+            echo "::error::PRs into master must come from 'develop' (got '$HEAD_REF'). Please target 'develop' instead."
+            problems=1
+          fi
+          if [ "$AUTHOR" != "$OWNER" ]; then
+            echo "::error::Only the repository owner ($OWNER) opens release PRs into master (opened by $AUTHOR)."
+            problems=1
+          fi
+          if [ "$problems" -eq 0 ]; then
+            echo "OK: release PR from $THIS_REPO:develop, opened by $OWNER."
+          fi
+          exit "$problems"

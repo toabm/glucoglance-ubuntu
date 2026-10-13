@@ -43,6 +43,17 @@ GTK/tray code (`main.py`, `ui/tray.py`, `ui/credential_prompt.py`) can't
 be tested headlessly, so if you change it, describe in the PR how you
 tested it by hand (Ubuntu version, GNOME Shell version).
 
+To test the tray by hand without depending on a real sensor, run it
+against a fake reading you control:
+
+```bash
+python scripts/run_with_fake_reading.py --value 74
+echo 120 > "$XDG_RUNTIME_DIR/glucoglance-fake-reading"   # from another terminal
+```
+
+It needs no LibreLinkUp account and never touches your real settings,
+keyring, or autostart entry - see the script's docstring for details.
+
 ## Code style
 
 - Follow the existing layering: `client -> domain -> poller -> ui/config`.
@@ -54,8 +65,9 @@ tested it by hand (Ubuntu version, GNOME Shell version).
 
 ## Branches and pull requests
 
-- `develop` is the working branch; `master` only receives PRs from
-  `develop` for releases.
+- `develop` is the working branch; `master` only receives release PRs
+  from `develop`, opened by the maintainer (a CI check enforces this, so a
+  PR into `master` from anywhere else can't be merged).
 - Branch off `develop` and open your PR against `develop`.
 - Commit messages: a short imperative summary line, a blank line, then a
   bulleted list of what changed and why.

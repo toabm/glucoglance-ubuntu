@@ -38,6 +38,8 @@ def test_round_trip_preserves_values(tmp_path, monkeypatch):
         color_low="#FF0000",
         color_normal="#00FF00",
         color_high="#0000FF",
+        highlight_pulse=False,
+        range_hysteresis_mgdl=10,
         autostart_enabled=False,
     )
     save_settings(original)
