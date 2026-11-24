@@ -55,6 +55,10 @@ It needs no LibreLinkUp account and never touches your real settings,
 keyring, autostart entry, or Applications-menu entry - see the script's
 docstring for details.
 
+For the full checklist of tray behaviors to check (colors, blinking,
+acknowledging, errors, menu, settings), see
+[docs/manual-tray-tests.md](docs/manual-tray-tests.md).
+
 ## Code style
 
 - Follow the existing layering: `client -> domain -> poller -> ui/config`.

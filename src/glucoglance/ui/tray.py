@@ -23,7 +23,9 @@ the user acknowledges it - with the menu item that only appears while
 highlighted ("Stop blinking", or "Clear highlight" once it's steady), or
 by middle-clicking the icon - or the reading comes back in range. Once
 acknowledged it goes back to the plain colored text; the range color
-alone is enough from then on. See `domain.range_tracker` for the
+alone is enough from then on. If the value is already back inside the
+thresholds and only the hysteresis was keeping it out of range, it turns
+the normal color right away. See `domain.range_tracker` for the
 crossing/hysteresis logic.
 
 When a poll produces no reading, no number is shown at all: the icon
@@ -70,7 +72,7 @@ from glucoglance.config.autostart import set_autostart_enabled
 from glucoglance.config.credentials import delete_password
 from glucoglance.config.settings import Settings, save_settings
 from glucoglance.domain.range import GlucoseRange
-from glucoglance.domain.range_tracker import RangeState, RangeTracker
+from glucoglance.domain.range_tracker import RangeTracker
 from glucoglance.domain.reading import GlucoseReading
 from glucoglance.domain.units import GlucoseUnit
 from glucoglance.ui.about_dialog import show_about
@@ -128,7 +130,8 @@ class TrayDisplay:
         # Range thresholds and colors come from settings (config.toml) so
         # they're user-tunable without a code change; see classify_mgdl's
         # docstring for why the thresholds are always in mg/dL. The tracker
-        # is only ever touched from the poller thread (in show_reading).
+        # is only ever touched on the GTK main loop (in _apply_reading and
+        # _acknowledge_highlight), so it needs no lock.
         self._range_tracker = RangeTracker(
             low_threshold=settings.low_threshold_mgdl,
             high_threshold=settings.high_threshold_mgdl,
@@ -180,6 +183,9 @@ class TrayDisplay:
         self._blink_deadline = 0.0
         self._pulse_timer_id: int | None = None
         self._attention_shown = False
+        # Icon text of the reading currently shown, or None while the icon
+        # shows "no data" - lets an acknowledge redraw it in a new color.
+        self._shown_reading_text: str | None = None
         # Set once shutdown() is called, even if it happens before run()
         # starts the main loop (see shutdown()'s docstring for why that can
         # happen) - lets run() skip entering the loop at all in that case.
@@ -304,8 +310,7 @@ class TrayDisplay:
         mutation is scheduled onto the GTK main loop via `GLib.idle_add`
         rather than done directly here.
         """
-        state = self._range_tracker.update(reading)
-        GLib.idle_add(self._apply_reading, self._format_reading(reading, unit), state)
+        GLib.idle_add(self._apply_reading, reading, unit)
 
     def show_error(self, reason: NoDataReason, message: str) -> None:
         """Show that the latest poll produced no reading: the red-eye icon,
@@ -338,7 +343,7 @@ class TrayDisplay:
             Gtk.main_quit()
         shutil.rmtree(self._icon_dir, ignore_errors=True)
 
-    def _apply_reading(self, text: str, state: RangeState) -> bool:
+    def _apply_reading(self, reading: GlucoseReading, unit: GlucoseUnit) -> bool:
         """GLib.idle_add callback: show a reading's icon in its range color,
         highlighted if it's out of range and the crossing hasn't been
         acknowledged yet. Returning False tells GLib not to call this
@@ -346,6 +351,9 @@ class TrayDisplay:
         if self._quit_requested:
             return False
 
+        state = self._range_tracker.update(reading)
+        text = self._format_reading(reading, unit)
+        self._shown_reading_text = text
         color = self._range_colors[state.glucose_range]
         if not state.is_out_of_range:
             self._highlight_pending = False
@@ -375,6 +383,7 @@ class TrayDisplay:
         # Icon first, then the status: the other order would briefly show
         # the old reading's plain icon.
         self._show_icon(self._no_data_icon_spec(reason))
+        self._shown_reading_text = None
         self._set_attention(False)
         self._sync_acknowledge_item(visible=False, blinking=False)
         self._sync_no_data_item(reason)
@@ -382,9 +391,15 @@ class TrayDisplay:
 
     def _acknowledge_highlight(self) -> None:
         """Clear the highlight until the next crossing, settling on the
-        plain colored text. Called from the menu item (directly or via
-        middle-click), on the main loop."""
+        plain colored text - in the normal color if the value is only out
+        of range because of the hysteresis. Called from the menu item
+        (directly or via middle-click), on the main loop."""
         self._highlight_pending = False
+        glucose_range = self._range_tracker.acknowledge()
+        if self._shown_reading_text is not None:
+            # Icon first, then the status (in _sync_highlight): the other
+            # order would briefly show the old color's plain icon.
+            self._show_icon(_IconSpec(self._shown_reading_text, self._range_colors[glucose_range]))
         self._sync_highlight()
 
     def _sync_highlight(self) -> None:

@@ -16,6 +16,11 @@ clock, so this stays pure and deterministic. A gap between readings
 longer than `max_gap` (e.g. the app was asleep or polls kept failing)
 starts over, so an out-of-range reading after it counts as a fresh
 crossing again rather than silently continuing a stretch nobody saw.
+
+Hysteresis only exists to stop the highlight flickering. Once the user
+has acknowledged the highlight there's nothing left to flicker, so
+`acknowledge()` drops it: a value that's back inside the plain thresholds
+(e.g. 178 with a 180 threshold) counts as in range straight away.
 """
 
 from dataclasses import dataclass
@@ -63,6 +68,7 @@ class RangeTracker:
         self._max_gap = max_gap
         self._range = GlucoseRange.NORMAL
         self._last_timestamp: datetime | None = None
+        self._last_value_mgdl: float | None = None
 
     def update(self, reading: GlucoseReading) -> RangeState:
         """Classify `reading` in the context of earlier ones and return the
@@ -72,6 +78,7 @@ class RangeTracker:
         ):
             self._range = GlucoseRange.NORMAL
         self._last_timestamp = reading.timestamp
+        self._last_value_mgdl = reading.value_mgdl
 
         new_range = self._classify(reading.value_mgdl)
         # A new stretch starts on any change into LOW or HIGH, including a
@@ -79,6 +86,27 @@ class RangeTracker:
         just_crossed = new_range is not GlucoseRange.NORMAL and new_range is not self._range
         self._range = new_range
         return RangeState(glucose_range=new_range, just_crossed=just_crossed)
+
+    def acknowledge(self) -> GlucoseRange:
+        """The user acknowledged the highlight: re-classify the last reading
+        against the plain thresholds, ignoring hysteresis, and return its
+        range.
+
+        Only ever moves the range back to NORMAL. A reading that's still
+        out of range by the plain thresholds keeps its range, so the next
+        out-of-range reading isn't mistaken for a fresh crossing. After a
+        reset to NORMAL, the next reading past a threshold *is* a fresh
+        crossing: a new excursion after the user cleared the old one.
+        """
+        if self._last_value_mgdl is not None:
+            plain_range = classify_mgdl(
+                self._last_value_mgdl,
+                low_threshold=self._low_threshold,
+                high_threshold=self._high_threshold,
+            )
+            if plain_range is GlucoseRange.NORMAL:
+                self._range = GlucoseRange.NORMAL
+        return self._range
 
     def _classify(self, value_mgdl: float) -> GlucoseRange:
         """Plain threshold classification, except that staying in an
