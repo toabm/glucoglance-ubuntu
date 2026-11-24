@@ -10,14 +10,15 @@ from glucoglance.domain.trend import TrendArrow
 _START = datetime(2026, 9, 29, 12, 0)
 
 
-def _feed(tracker: RangeTracker, values: list[int], step_minutes: int = 1):
-    """Feed `values` as readings `step_minutes` apart; return every state."""
+def _feed(tracker: RangeTracker, values: list[int], step_minutes: int = 1, first_minute: int = 0):
+    """Feed `values` as readings `step_minutes` apart, the first one
+    `first_minute` after _START; return every state."""
     return [
         tracker.update(
             GlucoseReading(
                 value_mgdl=value,
                 trend=TrendArrow.STABLE,
-                timestamp=_START + timedelta(minutes=i * step_minutes),
+                timestamp=_START + timedelta(minutes=first_minute + i * step_minutes),
                 is_high=False,
                 is_low=False,
             )
@@ -81,3 +82,40 @@ def test_custom_thresholds_and_hysteresis_are_respected():
     states = _feed(tracker, [165, 152, 150])
     assert [s.is_out_of_range for s in states] == [True, True, False]
 
+
+def test_acknowledge_in_hysteresis_band_returns_to_normal():
+    # 178 is below the 180 threshold but still HIGH because of hysteresis.
+    tracker = RangeTracker()
+    states = _feed(tracker, [190, 178])
+    assert states[1].glucose_range is GlucoseRange.HIGH
+    assert tracker.acknowledge() is GlucoseRange.NORMAL
+
+
+def test_acknowledge_in_low_hysteresis_band_returns_to_normal():
+    tracker = RangeTracker()
+    _feed(tracker, [75, 82])
+    assert tracker.acknowledge() is GlucoseRange.NORMAL
+
+
+def test_acknowledge_while_still_out_of_range_keeps_the_range():
+    tracker = RangeTracker()
+    _feed(tracker, [190, 195])
+    assert tracker.acknowledge() is GlucoseRange.HIGH
+    # Still the same stretch: the next high reading is not a new crossing.
+    [state] = _feed(tracker, [196], first_minute=2)
+    assert not state.just_crossed
+
+
+def test_after_acknowledge_in_band_values_use_plain_thresholds():
+    # After the reset, 179 is in range and 182 is a fresh crossing.
+    tracker = RangeTracker()
+    _feed(tracker, [190, 178])
+    tracker.acknowledge()
+    later = _feed(tracker, [179, 182], first_minute=2)
+    assert later[0].glucose_range is GlucoseRange.NORMAL
+    assert later[1].glucose_range is GlucoseRange.HIGH
+    assert later[1].just_crossed
+
+
+def test_acknowledge_before_any_reading_is_harmless():
+    assert RangeTracker().acknowledge() is GlucoseRange.NORMAL
